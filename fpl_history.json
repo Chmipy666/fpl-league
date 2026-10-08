@@ -1,0 +1,109 @@
+[
+  {
+    "gameweek": 5,
+    "league_name": "Curry Club Round 5 Phals alive",
+    "updated": "08 Oct 2026 09:49",
+    "players": [
+      {
+        "entry": 3061020,
+        "rank": 1,
+        "manager": "Daniel Brown",
+        "team": "FC DCB",
+        "total": 367,
+        "gw_points": 68,
+        "previous_rank": 1,
+        "movement": 0
+      },
+      {
+        "entry": 518209,
+        "rank": 2,
+        "manager": "James Hedley",
+        "team": "Snakes&Volleys",
+        "total": 361,
+        "gw_points": 44,
+        "previous_rank": 2,
+        "movement": 0
+      },
+      {
+        "entry": 7147625,
+        "rank": 3,
+        "manager": "David Kwong",
+        "team": "ABCDE FC",
+        "total": 359,
+        "gw_points": 54,
+        "previous_rank": 3,
+        "movement": 0
+      },
+      {
+        "entry": 756483,
+        "rank": 4,
+        "manager": "Sean Bottamley",
+        "team": "Livin' Saliba Loca",
+        "total": 356,
+        "gw_points": 58,
+        "previous_rank": 4,
+        "movement": 0
+      },
+      {
+        "entry": 390134,
+        "rank": 5,
+        "manager": "oliver Green",
+        "team": "Gitten there my son",
+        "total": 350,
+        "gw_points": 38,
+        "previous_rank": 5,
+        "movement": 0
+      },
+      {
+        "entry": 7009706,
+        "rank": 6,
+        "manager": "Darren Cartwright",
+        "team": "Phoenix Cartwrights",
+        "total": 346,
+        "gw_points": 53,
+        "previous_rank": 6,
+        "movement": 0
+      },
+      {
+        "entry": 3581128,
+        "rank": 7,
+        "manager": "Jordan Gill",
+        "team": "Blame it on the boat",
+        "total": 340,
+        "gw_points": 47,
+        "previous_rank": 7,
+        "movement": 0
+      },
+      {
+        "entry": 5021862,
+        "rank": 8,
+        "manager": "Andy Potter",
+        "team": "Bhunarmy",
+        "total": 338,
+        "gw_points": 76,
+        "previous_rank": 8,
+        "movement": 0
+      },
+      {
+        "entry": 2289310,
+        "rank": 9,
+        "manager": "Chris Tyrrell",
+        "team": "Dropbear City",
+        "total": 316,
+        "gw_points": 52,
+        "previous_rank": 9,
+        "movement": 0
+      },
+      {
+        "entry": 1281784,
+        "rank": 10,
+        "manager": "shaun leigh",
+        "team": "shaun's Team",
+        "total": 285,
+        "gw_points": 54,
+        "previous_rank": 10,
+        "movement": 0
+      }
+    ]
+  }
+]
