@@ -1,8 +1,10 @@
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, send_file
 import requests
 import json
 import os
 from datetime import datetime
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
 
@@ -280,6 +282,263 @@ def build_snapshot():
 
     return snapshot
 
+# ============================================================
+# WHATSAPP GRAPHIC
+# ============================================================
+
+def create_whatsapp_graphic(snapshot):
+    """Create a WhatsApp-friendly PNG of the league tables."""
+
+    width = 1400
+    height = 1050
+
+    # FPL-style colours
+    green = "#00FF87"
+    dark = "#061A14"
+    card = "#0A241B"
+    white = "#FFFFFF"
+    grey = "#9AB3A8"
+    red = "#FF4D6D"
+    gold = "#FFD700"
+
+    image = Image.new(
+        "RGB",
+        (width, height),
+        dark
+    )
+
+    draw = ImageDraw.Draw(image)
+
+    # Fonts
+    try:
+        title_font = ImageFont.truetype(
+            "DejaVuSans-Bold.ttf", 52
+        )
+        subtitle_font = ImageFont.truetype(
+            "DejaVuSans-Bold.ttf", 28
+        )
+        name_font = ImageFont.truetype(
+            "DejaVuSans-Bold.ttf", 24
+        )
+        small_font = ImageFont.truetype(
+            "DejaVuSans.ttf", 18
+        )
+        points_font = ImageFont.truetype(
+            "DejaVuSans-Bold.ttf", 26
+        )
+    except Exception:
+        title_font = ImageFont.load_default()
+        subtitle_font = ImageFont.load_default()
+        name_font = ImageFont.load_default()
+        small_font = ImageFont.load_default()
+        points_font = ImageFont.load_default()
+
+    # Header
+    draw.rectangle(
+        (0, 0, width, 145),
+        fill=green
+    )
+
+    draw.text(
+        (50, 25),
+        "⚽ FPL LEAGUE",
+        fill=dark,
+        font=title_font
+    )
+
+    draw.text(
+        (52, 88),
+        f"{snapshot['league_name']}  •  GAMEWEEK {snapshot['gameweek']}",
+        fill=dark,
+        font=small_font
+    )
+
+    # Split league
+    top5 = snapshot["players"][:5]
+    bottom5 = snapshot["players"][5:10]
+
+    def draw_league_card(
+        x,
+        y,
+        w,
+        h,
+        title,
+        subtitle,
+        players
+    ):
+
+        # Card
+        draw.rounded_rectangle(
+            (x, y, x + w, y + h),
+            radius=25,
+            fill=card,
+            outline="#174D3A",
+            width=3
+        )
+
+        # Heading
+        draw.text(
+            (x + 25, y + 20),
+            title,
+            fill=white,
+            font=subtitle_font
+        )
+
+        draw.text(
+            (x + 25, y + 58),
+            subtitle,
+            fill=grey,
+            font=small_font
+        )
+
+        row_y = y + 105
+
+        for player in players:
+
+            # Row background
+            draw.rounded_rectangle(
+                (
+                    x + 15,
+                    row_y,
+                    x + w - 15,
+                    row_y + 90
+                ),
+                radius=12,
+                fill="#0D3024"
+            )
+
+            rank = player["rank"]
+
+            if rank == 1:
+                medal = "🥇"
+            elif rank == 2:
+                medal = "🥈"
+            elif rank == 3:
+                medal = "🥉"
+            else:
+                medal = str(rank)
+
+            # Rank
+            draw.text(
+                (x + 30, row_y + 28),
+                medal,
+                fill=gold if rank == 1 else white,
+                font=name_font
+            )
+
+            # Manager
+            manager = player["manager"]
+
+            draw.text(
+                (x + 95, row_y + 18),
+                manager[:24],
+                fill=white,
+                font=name_font
+            )
+
+            # Team
+            draw.text(
+                (x + 95, row_y + 50),
+                player["team"][:28],
+                fill=grey,
+                font=small_font
+            )
+
+            # Overall points
+            draw.text(
+                (x + w - 205, row_y + 18),
+                str(player["total"]),
+                fill=white,
+                font=points_font
+            )
+
+            draw.text(
+                (x + w - 205, row_y + 52),
+                "TOTAL",
+                fill=grey,
+                font=small_font
+            )
+
+            # GW points
+            gw_text = f"+{player['gw_points']} GW"
+
+            draw.text(
+                (x + w - 100, row_y + 35),
+                gw_text,
+                fill=green,
+                font=small_font
+            )
+
+            # Movement
+            movement = player.get("movement", 0)
+
+            if movement > 0:
+                movement_text = f"↑ {movement}"
+                movement_colour = green
+            elif movement < 0:
+                movement_text = f"↓ {abs(movement)}"
+                movement_colour = red
+            else:
+                movement_text = "—"
+                movement_colour = grey
+
+            draw.text(
+                (x + 30, row_y + 65),
+                movement_text,
+                fill=movement_colour,
+                font=small_font
+            )
+
+            row_y += 105
+
+    # Two league cards
+    draw_league_card(
+        40,
+        175,
+        640,
+        680,
+        "🏆 TOP 5",
+        "CHAMPIONSHIP LEAGUE",
+        top5
+    )
+
+    draw_league_card(
+        720,
+        175,
+        640,
+        680,
+        "⚔️ 6TH — 10TH",
+        "CHALLENGER LEAGUE",
+        bottom5
+    )
+
+    # Footer
+    draw.text(
+        (50, 900),
+        f"Updated: {snapshot['updated']}",
+        fill=grey,
+        font=small_font
+    )
+
+    draw.text(
+        (50, 940),
+        "Fantasy Premier League Mini League",
+        fill=green,
+        font=small_font
+    )
+
+    # Return image in memory
+    output = BytesIO()
+
+    image.save(
+        output,
+        format="PNG"
+    )
+
+    output.seek(0)
+
+    return output
+
 
 # ============================================================
 # ROUTES
@@ -315,6 +574,38 @@ def api_history():
         load_history()
     )
 
+@app.route("/download-whatsapp")
+def download_whatsapp():
+
+    try:
+
+        snapshot = build_snapshot()
+
+        # Save the latest snapshot
+        save_snapshot(snapshot)
+
+        graphic = create_whatsapp_graphic(
+            snapshot
+        )
+
+        filename = (
+            f"FPL_Gameweek_"
+            f"{snapshot['gameweek']}.png"
+        )
+
+        return send_file(
+            graphic,
+            mimetype="image/png",
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as error:
+
+        return (
+            f"Unable to create graphic: {error}",
+            500
+        )
 
 # ============================================================
 # HTML / CSS / JAVASCRIPT
@@ -357,7 +648,6 @@ body {
             #02110d
         );
 
-    color: white;
 
     min-height: 100vh;
 }
@@ -890,6 +1180,10 @@ button:hover {
         🔄 UPDATE FROM FPL
     </button>
 
+    <button onclick="downloadWhatsApp()">
+    📲 WHATSAPP GRAPHIC
+</button>
+
 </div>
 
 
@@ -1017,6 +1311,20 @@ async function refreshData() {
             "Unable to update FPL data: "
             + error.message;
     }
+}
+function downloadWhatsApp() {
+
+    if (!currentData) {
+
+        alert(
+            "Please update the FPL data first."
+        );
+
+        return;
+    }
+
+    window.location.href =
+        "/download-whatsapp";
 }
 
 
