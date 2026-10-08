@@ -648,6 +648,8 @@ body {
             #02110d
         );
 
+        color: #FFFFFF;
+
 
     min-height: 100vh;
 }
