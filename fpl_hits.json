@@ -1,0 +1,80 @@
+{
+  "updated": "09 Oct 2026 20:44",
+  "managers": {
+    "3061020": {
+      "manager": "Daniel Brown",
+      "team": "FC DCB",
+      "hits": [
+        {
+          "gw": 3,
+          "points": 4
+        }
+      ],
+      "total_points": 4,
+      "total_hits": 1
+    },
+    "518209": {
+      "manager": "James Hedley",
+      "team": "Snakes&Volleys",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    },
+    "7147625": {
+      "manager": "David Kwong",
+      "team": "ABCDE FC",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    },
+    "756483": {
+      "manager": "Sean Bottamley",
+      "team": "Livin' Saliba Loca",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    },
+    "390134": {
+      "manager": "oliver Green",
+      "team": "Gitten there my son",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    },
+    "7009706": {
+      "manager": "Darren Cartwright",
+      "team": "Phoenix Cartwrights",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    },
+    "3581128": {
+      "manager": "Jordan Gill",
+      "team": "Blame it on the boat",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    },
+    "5021862": {
+      "manager": "Andy Potter",
+      "team": "Bhunarmy",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    },
+    "2289310": {
+      "manager": "Chris Tyrrell",
+      "team": "Dropbear City",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    },
+    "1281784": {
+      "manager": "shaun leigh",
+      "team": "shaun's Team",
+      "hits": [],
+      "total_points": 0,
+      "total_hits": 0
+    }
+  }
+}

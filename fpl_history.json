@@ -2,7 +2,7 @@
   {
     "gameweek": 5,
     "league_name": "Curry Club Round 5 Phals alive",
-    "updated": "09 Oct 2026 20:32",
+    "updated": "09 Oct 2026 20:44",
     "chip_half": 1,
     "chip_split_gw": 19,
     "period": {
@@ -52,6 +52,7 @@
             "used_gw": null
           }
         ],
+        "hit_cost": 0,
         "gw_points": 68,
         "captain": "Haaland",
         "captain_points": 12,
@@ -98,6 +99,7 @@
             "used_gw": null
           }
         ],
+        "hit_cost": 0,
         "gw_points": 44,
         "captain": "Haaland",
         "captain_points": 12,
@@ -144,6 +146,7 @@
             "used_gw": 3
           }
         ],
+        "hit_cost": 0,
         "gw_points": 54,
         "captain": "Calvert-Lewin",
         "captain_points": 4,
@@ -190,6 +193,7 @@
             "used_gw": 3
           }
         ],
+        "hit_cost": 0,
         "gw_points": 58,
         "captain": "Haaland",
         "captain_points": 12,
@@ -236,6 +240,7 @@
             "used_gw": 3
           }
         ],
+        "hit_cost": 0,
         "gw_points": 38,
         "captain": "Haaland",
         "captain_points": 12,
@@ -282,6 +287,7 @@
             "used_gw": null
           }
         ],
+        "hit_cost": 0,
         "gw_points": 53,
         "captain": "Calvert-Lewin",
         "captain_points": 4,
@@ -328,6 +334,7 @@
             "used_gw": 3
           }
         ],
+        "hit_cost": 0,
         "gw_points": 47,
         "captain": "Haaland",
         "captain_points": 12,
@@ -374,6 +381,7 @@
             "used_gw": null
           }
         ],
+        "hit_cost": 0,
         "gw_points": 76,
         "captain": "Semenyo",
         "captain_points": 34,
@@ -420,6 +428,7 @@
             "used_gw": null
           }
         ],
+        "hit_cost": 0,
         "gw_points": 52,
         "captain": "Haaland",
         "captain_points": 12,
@@ -466,6 +475,7 @@
             "used_gw": null
           }
         ],
+        "hit_cost": 0,
         "gw_points": 54,
         "captain": "Gibbs-White",
         "captain_points": 4,

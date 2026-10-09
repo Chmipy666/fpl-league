@@ -2,6 +2,8 @@ from flask import Flask, jsonify, render_template_string, send_file, request
 import requests
 import json
 import os
+import hmac
+import time
 from datetime import datetime
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
@@ -49,6 +51,14 @@ RESET_POINTS_EACH_PERIOD = True
 # True  = curries are kept (a manager who wins twice shows 2 curries)
 # False = only the winners of the most recent period show a curry
 CURRIES_STACK = True
+
+# ---- Hits tracker (password protected) ----
+# Every transfer hit (-4, -8 ...) taken this season is saved here.
+HITS_FILE = "fpl_hits.json"
+
+# Password for the HITS TRACKER button.
+# (Or set an environment variable called FPL_HITS_PASSWORD instead.)
+HITS_PASSWORD = os.environ.get("FPL_HITS_PASSWORD", "Meg8tron123!!!")
 
 # ---- Chips ----
 # Each chip comes in two sets: one for GW1-19 and one for GW20-38.
@@ -549,6 +559,69 @@ def get_league_rows(standings, gameweek):
     return rows, state
 
 
+def load_hits():
+    """Load the saved hits record."""
+
+    if not os.path.exists(HITS_FILE):
+        return {"updated": None, "managers": {}}
+
+    try:
+        with open(HITS_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        data.setdefault("managers", {})
+        return data
+
+    except Exception:
+        return {"updated": None, "managers": {}}
+
+
+def record_hits(rows):
+    """Save every transfer hit each manager has taken this season.
+
+    A hit is any Gameweek where event_transfers_cost is above 0
+    (-4 for one extra transfer, -8 for two, and so on).
+    """
+
+    data = load_hits()
+    managers = data["managers"]
+
+    for row in rows:
+
+        current = row["history"].get("current", [])
+
+        # If FPL didn't answer, keep what we already saved
+        if not current:
+            continue
+
+        hits = []
+
+        for gw in current:
+            cost = gw.get("event_transfers_cost", 0)
+
+            if cost > 0:
+                hits.append({
+                    "gw": gw.get("event"),
+                    "points": cost
+                })
+
+        managers[str(row["entry"])] = {
+            "manager": row.get("player_name", "Unknown Manager"),
+            "team": row.get("entry_name", "Unknown Team"),
+            "hits": hits,
+            "total_points": sum(h["points"] for h in hits),
+            "total_hits": sum(h["points"] // 4 for h in hits)
+        }
+
+    data["managers"] = managers
+    data["updated"] = datetime.now().strftime("%d %b %Y %H:%M")
+
+    with open(HITS_FILE, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2)
+
+    return data
+
+
 def get_chip_status(history, chip_half):
     """Which chips a manager has used / still has in the current half.
 
@@ -588,6 +661,11 @@ def build_snapshot():
     gameweek = get_current_gameweek()
 
     league_rows, state = get_league_rows(standings, gameweek)
+
+    try:
+        record_hits(league_rows)
+    except Exception:
+        pass
 
     period_first, period_last = period_bounds(
         state["start_gw"],
@@ -646,6 +724,7 @@ def build_snapshot():
         )
 
         gw_points = 0
+        hit_cost = 0
 
         matching_gw = [
             x for x in current_history
@@ -655,6 +734,11 @@ def build_snapshot():
         if matching_gw:
             gw_points = matching_gw[0].get(
                 "points",
+                0
+            )
+
+            hit_cost = matching_gw[0].get(
+                "event_transfers_cost",
                 0
             )
 
@@ -709,6 +793,7 @@ def build_snapshot():
             "last_move": row["last_move"],
             "curries": row["curries"],
             "chips": get_chip_status(row["history"], chip_half),
+            "hit_cost": hit_cost,
             "gw_points": gw_points,
             "captain": captain_name,
             "captain_points": captain_points,
@@ -746,20 +831,11 @@ def build_snapshot():
 # WHATSAPP GRAPHIC
 # ============================================================
 
-_CURRY_ICONS = {}
+def render_emoji_icon(char, size):
+    """Render an emoji as a small RGBA image using a colour-emoji font.
 
-
-def get_curry_icon(size):
-    """A small curry picture for the PNGs.
-
-    Uses the system colour-emoji font if one can be found,
-    otherwise draws a simple curry bowl.
+    Returns None if no suitable font can be found on this computer.
     """
-
-    if size in _CURRY_ICONS:
-        return _CURRY_ICONS[size]
-
-    icon = None
 
     candidates = [
         ("seguiemj.ttf", 109),                                   # Windows
@@ -776,7 +852,7 @@ def get_curry_icon(size):
 
             ImageDraw.Draw(canvas).text(
                 (10, 10),
-                "🍛",
+                char,
                 font=font,
                 embedded_color=True
             )
@@ -792,10 +868,30 @@ def get_curry_icon(size):
                     glyph,
                     ((size - glyph.width) // 2, (size - glyph.height) // 2)
                 )
-                break
+
+                return icon
 
         except Exception:
             continue
+
+    return None
+
+
+_CURRY_ICONS = {}
+_CLOWN_ICONS = {}
+
+
+def get_curry_icon(size):
+    """A small curry picture for the PNGs.
+
+    Uses the system colour-emoji font if one can be found,
+    otherwise draws a simple curry bowl.
+    """
+
+    if size in _CURRY_ICONS:
+        return _CURRY_ICONS[size]
+
+    icon = render_emoji_icon("🍛", size)
 
     if icon is None:
 
@@ -831,6 +927,58 @@ def get_curry_icon(size):
         icon = canvas.resize((size, size), Image.LANCZOS)
 
     _CURRY_ICONS[size] = icon
+
+    return icon
+
+
+def get_clown_icon(size):
+    """A small clown picture for the PNGs."""
+
+    if size in _CLOWN_ICONS:
+        return _CLOWN_ICONS[size]
+
+    icon = render_emoji_icon("🤡", size)
+
+    if icon is None:
+
+        # Fallback: draw a simple clown face
+        s = size * 4
+
+        canvas = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+        d = ImageDraw.Draw(canvas)
+
+        line = max(2, s // 40)
+
+        # Hair
+        d.ellipse((s * 0.00, s * 0.20, s * 0.34, s * 0.54), fill="#E63946")
+        d.ellipse((s * 0.66, s * 0.20, s * 1.00, s * 0.54), fill="#E63946")
+
+        # Face
+        d.ellipse(
+            (s * 0.14, s * 0.08, s * 0.86, s * 0.94),
+            fill="#FFF5E6",
+            outline="#B0A090",
+            width=line
+        )
+
+        # Eyes
+        d.ellipse((s * 0.32, s * 0.30, s * 0.42, s * 0.42), fill="#222222")
+        d.ellipse((s * 0.58, s * 0.30, s * 0.68, s * 0.42), fill="#222222")
+
+        # Nose
+        d.ellipse((s * 0.42, s * 0.44, s * 0.58, s * 0.60), fill="#E63946")
+
+        # Smile
+        d.arc(
+            (s * 0.30, s * 0.50, s * 0.70, s * 0.82),
+            20, 160,
+            fill="#E63946",
+            width=line * 2
+        )
+
+        icon = canvas.resize((size, size), Image.LANCZOS)
+
+    _CLOWN_ICONS[size] = icon
 
     return icon
 
@@ -993,12 +1141,38 @@ def create_whatsapp_graphic(snapshot):
                 font=name_font
             )
 
-            # Manager (+ curry for period winners)
+            # Manager (+ curry for period winners, + clown for hits)
             manager = player["manager"]
 
             curries = player.get("curries", 0)
+            hit_cost = player.get("hit_cost", 0)
 
-            manager_text = manager[:18] if curries else manager[:24]
+            hit_text = f"-{hit_cost}"
+
+            # Shorten the name if the extras need the room
+            extras_w = 0
+
+            if curries:
+                extras_w += 36
+                if curries > 1:
+                    extras_w += 32
+
+            if hit_cost:
+                extras_w += (
+                    32
+                    + draw.textlength(hit_text, font=small_font)
+                    + 6
+                )
+
+            max_name_w = (w - 205) - 95 - 12 - extras_w
+
+            manager_text = manager[:24]
+
+            while (
+                manager_text
+                and draw.textlength(manager_text, font=name_font) > max_name_w
+            ):
+                manager_text = manager_text[:-1]
 
             draw.text(
                 (x + 95, row_y + 18),
@@ -1007,24 +1181,42 @@ def create_whatsapp_graphic(snapshot):
                 font=name_font
             )
 
-            if curries:
-                icon_x = int(
-                    x + 95
-                    + draw.textlength(manager_text, font=name_font)
-                    + 8
-                )
+            cursor_x = int(
+                x + 95
+                + draw.textlength(manager_text, font=name_font)
+                + 8
+            )
 
+            if curries:
                 icon = get_curry_icon(28)
 
-                image.paste(icon, (icon_x, row_y + 17), icon)
+                image.paste(icon, (cursor_x, row_y + 17), icon)
+
+                cursor_x += 34
 
                 if curries > 1:
                     draw.text(
-                        (icon_x + 32, row_y + 23),
+                        (cursor_x, row_y + 23),
                         f"x{curries}",
                         fill=gold,
                         font=small_font
                     )
+
+                    cursor_x += 32
+
+            if hit_cost:
+                icon = get_clown_icon(28)
+
+                image.paste(icon, (cursor_x, row_y + 17), icon)
+
+                cursor_x += 32
+
+                draw.text(
+                    (cursor_x, row_y + 23),
+                    hit_text,
+                    fill=red,
+                    font=small_font
+                )
 
             # Team (+ promoted / relegated tag)
             last_move = player.get("last_move")
@@ -1189,6 +1381,13 @@ def create_whatsapp_graphic(snapshot):
     draw.text(
         (50, 980),
         chip_note,
+        fill=grey,
+        font=small_font
+    )
+
+    draw.text(
+        (50, 1010),
+        "Clown = transfer points hit taken this Gameweek",
         fill=grey,
         font=small_font
     )
@@ -1570,6 +1769,48 @@ def api_history():
     return jsonify(
         load_history()
     )
+
+@app.route("/api/hits", methods=["POST"])
+def api_hits():
+    """Password-protected hits record."""
+
+    body = request.get_json(silent=True) or {}
+
+    supplied = str(body.get("password", ""))
+
+    if not hmac.compare_digest(
+        supplied.encode("utf-8"),
+        HITS_PASSWORD.encode("utf-8")
+    ):
+        time.sleep(1)    # slows down password guessing
+        return jsonify({"error": "Wrong password"}), 401
+
+    from_saved = False
+
+    try:
+        league_name, standings = get_league()
+        gameweek = get_current_gameweek()
+        rows, _ = get_league_rows(standings, gameweek)
+        data = record_hits(rows)
+
+    except Exception:
+        # FPL not reachable - show what was saved earlier
+        data = load_hits()
+        from_saved = True
+
+    managers = sorted(
+        data["managers"].values(),
+        key=lambda m: (-m["total_points"], m["manager"])
+    )
+
+    return jsonify({
+        "updated": data.get("updated"),
+        "from_saved": from_saved,
+        "total_points": sum(m["total_points"] for m in managers),
+        "total_hits": sum(m["total_hits"] for m in managers),
+        "managers": managers
+    })
+
 
 @app.route("/download-whatsapp")
 def download_whatsapp():
@@ -2184,6 +2425,168 @@ button:hover {
 
 
 /* ==========================================================
+   HITS TRACKER (password protected pop-up)
+   ========================================================== */
+
+.modal {
+
+    display: none;
+
+    position: fixed;
+
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    background: rgba(0, 0, 0, 0.75);
+
+    align-items: center;
+
+    justify-content: center;
+
+    z-index: 50;
+
+    padding: 20px;
+}
+
+.modal-box {
+
+    background: #081f18;
+
+    border: 1px solid rgba(0, 255, 135, 0.25);
+
+    border-radius: 18px;
+
+    width: 100%;
+
+    max-width: 780px;
+
+    max-height: 90vh;
+
+    overflow: auto;
+
+    padding: 25px;
+}
+
+.modal-top {
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    margin-bottom: 15px;
+}
+
+.modal-top h2 {
+
+    margin: 0;
+}
+
+.close-btn {
+
+    padding: 6px 12px;
+
+    background: #0D3024;
+
+    color: #FFFFFF;
+}
+
+.modal-box input {
+
+    width: 100%;
+
+    padding: 12px;
+
+    margin: 10px 0;
+
+    border-radius: 10px;
+
+    border: 1px solid rgba(0, 255, 135, 0.3);
+
+    background: #0D3024;
+
+    color: #FFFFFF;
+
+    font-size: 16px;
+}
+
+.hits-error {
+
+    color: #ff4d6d;
+
+    margin-top: 10px;
+
+    font-size: 14px;
+}
+
+.hits-summary {
+
+    background: #0D3024;
+
+    border-radius: 12px;
+
+    padding: 15px;
+
+    margin-bottom: 15px;
+}
+
+.hits-summary strong {
+
+    color: #ff4d6d;
+
+    font-size: 22px;
+}
+
+.hits-table {
+
+    width: 100%;
+
+    border-collapse: collapse;
+}
+
+.hits-table th {
+
+    text-align: left;
+
+    color: #76958a;
+
+    font-size: 12px;
+
+    padding: 8px;
+}
+
+.hits-table td {
+
+    padding: 10px 8px;
+
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+
+    vertical-align: top;
+
+    font-size: 14px;
+}
+
+.hits-points {
+
+    color: #ff4d6d;
+
+    font-weight: 900;
+
+    font-size: 18px;
+}
+
+.hits-weeks {
+
+    color: #a9c5b9;
+
+    font-size: 12px;
+}
+
+
+/* ==========================================================
    FOOTER
    ========================================================== */
 
@@ -2233,6 +2636,10 @@ button:hover {
 
     <button onclick="downloadTransfers()">
     🔁 TRANSFERS GRAPHIC
+</button>
+
+    <button onclick="openHits()">
+    🔒 HITS TRACKER
 </button>
 
 </div>
@@ -2291,6 +2698,42 @@ button:hover {
         </h2>
 
         <div id="captains" class="captains-grid"></div>
+
+    </div>
+
+</div>
+
+
+<div id="hitsModal" class="modal"
+     onclick="if (event.target === this) closeHits()">
+
+    <div class="modal-box">
+
+        <div class="modal-top">
+
+            <h2>🤡 Hits Tracker</h2>
+
+            <button class="close-btn" onclick="closeHits()">✕</button>
+
+        </div>
+
+        <div id="hitsLogin">
+
+            <div>Enter your password to see the hits record.</div>
+
+            <input type="password"
+                   id="hitsPassword"
+                   placeholder="Password"
+                   autocomplete="off"
+                   onkeydown="if (event.key === 'Enter') unlockHits()">
+
+            <button onclick="unlockHits()">🔓 UNLOCK</button>
+
+            <div id="hitsError" class="hits-error"></div>
+
+        </div>
+
+        <div id="hitsResults" style="display: none;"></div>
 
     </div>
 
@@ -2416,6 +2859,12 @@ function renderDashboard(data) {
               + `Second-set chips (GW${data.chip_split_gw + 1}-38).`;
 
 
+    document.getElementById(
+        "chipNote"
+    ).innerText +=
+        " 🤡 = transfer points hit taken this gameweek.";
+
+
     renderPlayers(
         "top5",
         top5
@@ -2484,6 +2933,16 @@ function renderPlayers(
             else if (player.curries > 0) {
 
                 curryTag = " " + "🍛".repeat(player.curries);
+            }
+
+            let hitTag = "";
+
+            if (player.hit_cost > 0) {
+
+                hitTag =
+                    `<span class="movement down"`
+                    + ` title="Transfer hit taken this gameweek">`
+                    + `🤡 -${player.hit_cost}</span>`;
             }
 
             let moveTag = "";
@@ -2602,6 +3061,8 @@ function renderPlayers(
 
                         ${curryTag}
 
+                        ${hitTag}
+
                         ${movement}
 
                         ${moveTag}
@@ -2701,6 +3162,140 @@ function renderCaptains(players) {
 
 
 /* ==========================================================
+   HITS TRACKER (password protected)
+   ========================================================== */
+
+function openHits() {
+
+    document.getElementById("hitsModal").style.display = "flex";
+
+    document.getElementById("hitsLogin").style.display = "block";
+
+    document.getElementById("hitsResults").style.display = "none";
+
+    document.getElementById("hitsError").innerText = "";
+
+    const input = document.getElementById("hitsPassword");
+
+    input.value = "";
+
+    input.focus();
+}
+
+function closeHits() {
+
+    document.getElementById("hitsModal").style.display = "none";
+
+    // Wipe the data from the page when closed
+    document.getElementById("hitsResults").innerHTML = "";
+}
+
+async function unlockHits() {
+
+    const input = document.getElementById("hitsPassword");
+
+    const error = document.getElementById("hitsError");
+
+    error.innerText = "Checking...";
+
+    try {
+
+        const response = await fetch("/api/hits", {
+
+            method: "POST",
+
+            headers: { "Content-Type": "application/json" },
+
+            body: JSON.stringify({ password: input.value })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+
+            throw new Error(data.error || "Unable to unlock");
+        }
+
+        input.value = "";
+
+        error.innerText = "";
+
+        document.getElementById("hitsLogin").style.display = "none";
+
+        document.getElementById("hitsResults").style.display = "block";
+
+        renderHits(data);
+
+    } catch (err) {
+
+        error.innerText = err.message;
+    }
+}
+
+function renderHits(data) {
+
+    let rows = "";
+
+    data.managers.forEach((m, index) => {
+
+        const weeks = m.hits.length
+            ? m.hits.map(h => `GW${h.gw} (-${h.points})`).join(", ")
+            : "No hits 🎉";
+
+        rows += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>
+                    <strong>${escapeHtml(m.manager)}</strong>
+                    ${m.total_hits > 0 ? " 🤡" : ""}
+                    <div class="hits-weeks">${escapeHtml(m.team)}</div>
+                    <div class="hits-weeks">${weeks}</div>
+                </td>
+                <td>${m.total_hits}</td>
+                <td class="hits-points">
+                    ${m.total_points > 0 ? "-" + m.total_points : "0"}
+                </td>
+            </tr>
+        `;
+    });
+
+    const note = data.from_saved
+        ? "<br><small>FPL could not be reached - showing saved data.</small>"
+        : "";
+
+    document.getElementById("hitsResults").innerHTML = `
+
+        <div class="hits-summary">
+
+            Points dropped on hits this season:
+            <strong>-${data.total_points}</strong>
+            (${data.total_hits} extra transfers)
+
+            <br>
+
+            <small>Updated ${escapeHtml(data.updated || "never")}</small>
+
+            ${note}
+
+        </div>
+
+        <table class="hits-table">
+
+            <tr>
+                <th>#</th>
+                <th>MANAGER</th>
+                <th>HITS</th>
+                <th>POINTS LOST</th>
+            </tr>
+
+            ${rows}
+
+        </table>
+    `;
+}
+
+
+/* ==========================================================
    SECURITY
    ========================================================== */
 
@@ -2740,6 +3335,12 @@ refreshData();
 # ============================================================
 
 if __name__ == "__main__":
+
+    if HITS_PASSWORD == "change-me":
+        print(
+            "WARNING: change HITS_PASSWORD at the top of the file "
+            "to protect the hits tracker."
+        )
 
     app.run(
         host="127.0.0.1",
