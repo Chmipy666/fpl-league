@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template_string, send_file
+from flask import Flask, jsonify, render_template_string, send_file, request
 import requests
 import json
 import os
@@ -600,6 +600,304 @@ def create_whatsapp_graphic(snapshot):
 
 
 # ============================================================
+# TRANSFERS GRAPHIC
+# ============================================================
+
+def get_manager_transfers(entry_id):
+    """Get every transfer a manager has made this season."""
+    try:
+        return fpl_get(f"entry/{entry_id}/transfers/")
+    except Exception:
+        return []
+
+
+def build_transfers_data(gameweek):
+    """Collect each manager's transfers for one Gameweek."""
+
+    league_name, standings = get_league()
+    player_names = get_player_names()
+    live_points = get_live_points(gameweek)
+
+    chip_labels = {
+        "wildcard": "WILDCARD",
+        "freehit": "FREE HIT",
+        "bboost": "BENCH BOOST",
+        "3xc": "TRIPLE CAPTAIN",
+        "manager": "ASSISTANT MANAGER"
+    }
+
+    managers = []
+
+    # Same top 10 as the dashboard
+    for row in standings[:10]:
+
+        entry_id = row.get("entry")
+
+        history = get_manager_history(entry_id)
+
+        hit_cost = 0
+        for gw in history.get("current", []):
+            if gw.get("event") == gameweek:
+                hit_cost = gw.get("event_transfers_cost", 0)
+                break
+
+        chips = [
+            chip_labels.get(c["name"], c["name"].upper())
+            for c in history.get("chips", [])
+            if c.get("event") == gameweek
+        ]
+
+        transfers = [
+            t for t in get_manager_transfers(entry_id)
+            if t.get("event") == gameweek
+        ]
+
+        transfers.sort(key=lambda t: t.get("time", ""))
+
+        transfer_rows = []
+
+        for t in transfers:
+            out_id = t["element_out"]
+            in_id = t["element_in"]
+
+            transfer_rows.append({
+                "out": player_names.get(out_id, "Unknown"),
+                "out_points": live_points.get(out_id, 0),
+                "in": player_names.get(in_id, "Unknown"),
+                "in_points": live_points.get(in_id, 0)
+            })
+
+        managers.append({
+            "rank": row.get("rank", 0),
+            "manager": row.get("player_name", "Unknown Manager"),
+            "team": row.get("entry_name", "Unknown Team"),
+            "hit_cost": hit_cost,
+            "chips": chips,
+            "transfers": transfer_rows
+        })
+
+    managers.sort(key=lambda m: m["rank"])
+
+    return {
+        "league_name": league_name,
+        "gameweek": gameweek,
+        "updated": datetime.now().strftime("%d %b %Y %H:%M"),
+        "managers": managers
+    }
+
+
+def load_font(bold, size):
+    """Try several common font files so it works on Windows, Mac and Linux."""
+
+    if bold:
+        candidates = [
+            "DejaVuSans-Bold.ttf", "arialbd.ttf", "Arial Bold.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        ]
+    else:
+        candidates = [
+            "DejaVuSans.ttf", "arial.ttf", "Arial.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        ]
+
+    for name in candidates:
+        try:
+            return ImageFont.truetype(name, size)
+        except Exception:
+            continue
+
+    return ImageFont.load_default()
+
+
+def create_transfers_graphic(data):
+    """Create a PNG showing every manager's transfers."""
+
+    green = "#00FF87"
+    dark = "#061A14"
+    card = "#0A241B"
+    row_bg = "#0D3024"
+    white = "#FFFFFF"
+    grey = "#9AB3A8"
+    red = "#FF4D6D"
+
+    title_font = load_font(True, 52)
+    name_font = load_font(True, 24)
+    player_font = load_font(True, 22)
+    small_font = load_font(False, 18)
+
+    width = 1400
+    col_w = 640
+    transfer_h = 38
+    block_gap = 15
+
+    def block_height(manager):
+        lines = max(1, len(manager["transfers"]))
+        return 85 + lines * transfer_h + 15
+
+    managers = data["managers"]
+    left = managers[:5]
+    right = managers[5:10]
+
+    def column_height(column):
+        if not column:
+            return 0
+        return sum(block_height(m) for m in column) + block_gap * (len(column) - 1)
+
+    content_h = max(column_height(left), column_height(right))
+    height = 145 + 30 + content_h + 110
+
+    image = Image.new("RGB", (width, height), dark)
+    draw = ImageDraw.Draw(image)
+
+    def right_text(x_right, y, text, fill, font):
+        w = draw.textlength(text, font=font)
+        draw.text((x_right - w, y), text, fill=fill, font=font)
+
+    # Header
+    draw.rectangle((0, 0, width, 145), fill=green)
+    draw.text((50, 25), "FPL TRANSFERS", fill=dark, font=title_font)
+    draw.text(
+        (52, 95),
+        f"{data['league_name']}  •  GAMEWEEK {data['gameweek']}",
+        fill=dark,
+        font=small_font
+    )
+
+    def draw_column(x, column):
+
+        y = 175
+
+        for m in column:
+
+            h = block_height(m)
+
+            draw.rounded_rectangle(
+                (x, y, x + col_w, y + h),
+                radius=20,
+                fill=card,
+                outline="#174D3A",
+                width=3
+            )
+
+            # Manager + team
+            draw.text(
+                (x + 25, y + 15),
+                f"{m['rank']}. {m['manager'][:26]}",
+                fill=white,
+                font=name_font
+            )
+
+            draw.text(
+                (x + 25, y + 48),
+                m["team"][:34],
+                fill=grey,
+                font=small_font
+            )
+
+            # Hit cost / chip (top right)
+            tag_y = y + 18
+
+            if m["chips"]:
+                right_text(
+                    x + col_w - 25, tag_y,
+                    " + ".join(m["chips"]),
+                    green, small_font
+                )
+                tag_y += 26
+
+            if m["hit_cost"]:
+                right_text(
+                    x + col_w - 25, tag_y,
+                    f"-{m['hit_cost']} hit",
+                    red, small_font
+                )
+
+            # Transfers
+            row_y = y + 85
+
+            if not m["transfers"]:
+                draw.text(
+                    (x + 25, row_y + 6),
+                    "No transfers made",
+                    fill=grey,
+                    font=small_font
+                )
+            else:
+                for t in m["transfers"]:
+
+                    draw.rounded_rectangle(
+                        (x + 15, row_y, x + col_w - 15, row_y + transfer_h - 4),
+                        radius=8,
+                        fill=row_bg
+                    )
+
+                    # OUT
+                    draw.text(
+                        (x + 28, row_y + 5),
+                        t["out"][:14],
+                        fill=red,
+                        font=player_font
+                    )
+                    draw.text(
+                        (x + 190, row_y + 8),
+                        f"{t['out_points']} pts",
+                        fill=grey,
+                        font=small_font
+                    )
+
+                    # Arrow
+                    draw.text(
+                        (x + 275, row_y + 5),
+                        "→",
+                        fill=white,
+                        font=player_font
+                    )
+
+                    # IN
+                    draw.text(
+                        (x + 325, row_y + 5),
+                        t["in"][:14],
+                        fill=green,
+                        font=player_font
+                    )
+                    draw.text(
+                        (x + 490, row_y + 8),
+                        f"{t['in_points']} pts",
+                        fill=grey,
+                        font=small_font
+                    )
+
+                    row_y += transfer_h
+
+            y += h + block_gap
+
+    draw_column(40, left)
+    draw_column(720, right)
+
+    # Footer
+    draw.text(
+        (50, height - 85),
+        f"Updated: {data['updated']}",
+        fill=grey,
+        font=small_font
+    )
+    draw.text(
+        (50, height - 50),
+        "Red = transferred out  •  Green = transferred in",
+        fill=green,
+        font=small_font
+    )
+
+    output = BytesIO()
+    image.save(output, format="PNG")
+    output.seek(0)
+
+    return output
+
+
+# ============================================================
 # ROUTES
 # ============================================================
 
@@ -663,6 +961,37 @@ def download_whatsapp():
 
         return (
             f"Unable to create graphic: {error}",
+            500
+        )
+
+
+@app.route("/download-transfers")
+def download_transfers():
+
+    try:
+
+        # Defaults to the latest finished Gameweek (same as the dashboard).
+        # Use /download-transfers?gw=12 to pick a specific one.
+        gameweek = request.args.get("gw", type=int)
+
+        if not gameweek:
+            gameweek = get_current_gameweek()
+
+        data = build_transfers_data(gameweek)
+
+        graphic = create_transfers_graphic(data)
+
+        return send_file(
+            graphic,
+            mimetype="image/png",
+            as_attachment=True,
+            download_name=f"FPL_Transfers_GW{gameweek}.png"
+        )
+
+    except Exception as error:
+
+        return (
+            f"Unable to create transfers graphic: {error}",
             500
         )
 
@@ -1206,6 +1535,10 @@ button:hover {
     📲 WHATSAPP GRAPHIC
 </button>
 
+    <button onclick="downloadTransfers()">
+    🔁 TRANSFERS GRAPHIC
+</button>
+
 </div>
 
 
@@ -1341,6 +1674,12 @@ function downloadWhatsApp() {
 
     window.location.href =
         "/download-whatsapp";
+}
+
+function downloadTransfers() {
+
+    window.location.href =
+        "/download-transfers";
 }
 
 
