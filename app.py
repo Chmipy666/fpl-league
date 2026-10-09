@@ -108,6 +108,40 @@ def get_manager_history(entry_id):
         return {"current": []}
 
 
+def get_manager_picks(entry_id, gameweek):
+    """Get a manager's squad picks for a Gameweek."""
+
+    try:
+        return fpl_get(f"entry/{entry_id}/event/{gameweek}/picks/")
+    except Exception:
+        return {"picks": []}
+
+
+def get_player_names():
+    """Map player element IDs to their short names."""
+
+    data = fpl_get("bootstrap-static/")
+
+    return {
+        element["id"]: element.get("web_name", "Unknown")
+        for element in data.get("elements", [])
+    }
+
+
+def get_live_points(gameweek):
+    """Map player element IDs to their points for a Gameweek."""
+
+    try:
+        data = fpl_get(f"event/{gameweek}/live/")
+
+        return {
+            element["id"]: element.get("stats", {}).get("total_points", 0)
+            for element in data.get("elements", [])
+        }
+    except Exception:
+        return {}
+
+
 def get_previous_snapshot():
     """Get the most recent saved snapshot."""
 
@@ -182,6 +216,10 @@ def build_snapshot():
 
     gameweek = get_current_gameweek()
 
+    # Fetched once per update, shared by every manager
+    player_names = get_player_names()
+    live_points = get_live_points(gameweek)
+
     previous = get_previous_snapshot()
 
     previous_players = {}
@@ -241,6 +279,25 @@ def build_snapshot():
             )
 
         # ----------------------------------------------------
+        # Captain for this Gameweek
+        # ----------------------------------------------------
+
+        captain_name = "—"
+        captain_points = 0
+
+        picks_data = get_manager_picks(entry_id, gameweek)
+
+        for pick in picks_data.get("picks", []):
+            if pick.get("is_captain"):
+                element_id = pick["element"]
+                captain_name = player_names.get(element_id, "Unknown")
+                captain_points = (
+                    live_points.get(element_id, 0)
+                    * pick.get("multiplier", 2)
+                )
+                break
+
+        # ----------------------------------------------------
         # Previous position
         # ----------------------------------------------------
 
@@ -263,6 +320,8 @@ def build_snapshot():
             "team": team_name,
             "total": total,
             "gw_points": gw_points,
+            "captain": captain_name,
+            "captain_points": captain_points,
             "previous_rank": previous_rank,
             "movement": movement
         })
@@ -648,8 +707,7 @@ body {
             #02110d
         );
 
-        color: #FFFFFF;
-
+    color: #FFFFFF;
 
     min-height: 100vh;
 }
@@ -1009,7 +1067,7 @@ button:hover {
 
 
 /* ==========================================================
-   CHART
+   CAPTAINS
    ========================================================== */
 
 .chart-card {
@@ -1043,98 +1101,60 @@ button:hover {
     margin-top: 0;
 }
 
-.chart {
+.captains-grid {
 
-    height: 400px;
+    display: grid;
 
-    overflow-x: auto;
-}
-
-.chart-inner {
-
-    min-width: 900px;
-
-    height: 100%;
-
-    display: flex;
-
-    align-items: flex-end;
-
-    gap: 12px;
-
-    padding:
-        20px
-        10px
-        35px;
-}
-
-.bar-group {
-
-    flex: 1;
-
-    height: 100%;
-
-    display: flex;
-
-    align-items: flex-end;
-
-    gap: 3px;
-}
-
-.bar {
-
-    flex: 1;
-
-    min-width: 7px;
-
-    background:
-        linear-gradient(
-            180deg,
-            #00ff87,
-            #009f58
+    grid-template-columns:
+        repeat(
+            auto-fill,
+            minmax(260px, 1fr)
         );
 
-    border-radius:
-        5px
-        5px
-        0
-        0;
-
-    position: relative;
+    gap: 15px;
 }
 
-.bar-label {
+.captain-card {
 
-    position: absolute;
+    background: #0D3024;
 
-    bottom: -25px;
+    border-radius: 12px;
 
-    left: 50%;
-
-    transform:
-        translateX(-50%);
-
-    font-size: 10px;
-
-    color: #78968a;
+    padding: 15px;
 }
 
-.bar-value {
+.captain-manager {
 
-    position: absolute;
+    font-weight: 800;
 
-    top: -20px;
+    font-size: 16px;
+}
 
-    left: 50%;
+.captain-team {
 
-    transform:
-        translateX(-50%);
+    color: #76958a;
 
-    font-size: 10px;
+    font-size: 12px;
 
-    color: white;
+    margin-top: 4px;
+}
 
-    white-space: nowrap;
+.captain-name {
+
+    color: #00ff87;
+
+    font-weight: 800;
+
+    margin-top: 12px;
+}
+
+.captain-points {
+
+    font-size: 22px;
+
+    font-weight: 900;
+
+    margin-top: 4px;
 }
 
 
@@ -1236,17 +1256,10 @@ button:hover {
     <div class="chart-card">
 
         <h2>
-            📈 Points Progression
+            🧢 Captains This Gameweek
         </h2>
 
-        <div class="chart">
-
-            <div
-                id="chart"
-                class="chart-inner">
-            </div>
-
-        </div>
+        <div id="captains" class="captains-grid"></div>
 
     </div>
 
@@ -1314,6 +1327,7 @@ async function refreshData() {
             + error.message;
     }
 }
+
 function downloadWhatsApp() {
 
     if (!currentData) {
@@ -1366,7 +1380,9 @@ function renderDashboard(data) {
     );
 
 
-    drawChart();
+    renderCaptains(
+        data.players
+    );
 }
 
 
@@ -1531,152 +1547,48 @@ function renderPlayers(
 
 
 /* ==========================================================
-   HISTORY CHART
+   CAPTAINS THIS GAMEWEEK
    ========================================================== */
 
-async function drawChart() {
+function renderCaptains(players) {
 
-    const response =
-        await fetch(
-            "/api/history"
-        );
+    const container =
+        document.getElementById("captains");
 
-    const history =
-        await response.json();
+    container.innerHTML = "";
 
+    players.forEach(player => {
 
-    const chart =
-        document.getElementById(
-            "chart"
-        );
+        const card =
+            document.createElement("div");
 
-    chart.innerHTML = "";
+        card.className = "captain-card";
 
+        card.innerHTML = `
+            <div class="captain-manager">
+                ${player.rank}. ${escapeHtml(player.manager)}
+            </div>
 
-    if (!history.length) {
+            <div class="captain-team">
+                ${escapeHtml(player.team)}
+            </div>
 
-        chart.innerHTML =
-            "<p>No history yet.</p>";
+            <div class="captain-name">
+                🧢 ${escapeHtml(player.captain)}
+            </div>
 
-        return;
-    }
+            <div class="captain-points">
+                ${player.captain_points} pts
+                <small>(captain)</small>
+            </div>
 
+            <div class="captain-team">
+                Team GW points: +${player.gw_points}
+            </div>
+        `;
 
-    const latest =
-        history[
-            history.length - 1
-        ];
-
-
-    const players =
-        latest.players;
-
-
-    /*
-     * Create a group for each player.
-     */
-
-    players.forEach(
-        player => {
-
-            const group =
-                document.createElement(
-                    "div"
-                );
-
-            group.className =
-                "bar-group";
-
-
-            history.forEach(
-                week => {
-
-                    const record =
-                        week.players.find(
-                            p =>
-                                p.entry ===
-                                player.entry
-                        );
-
-
-                    if (!record)
-                        return;
-
-
-                    /*
-                     * Scale the total points
-                     * relative to the league.
-                     */
-
-                    const maxPoints =
-                        Math.max(
-                            ...week.players.map(
-                                p =>
-                                    p.total
-                            )
-                        );
-
-
-                    const height =
-                        Math.max(
-                            5,
-                            (
-                                record.total /
-                                maxPoints
-                            ) * 100
-                        );
-
-
-                    const bar =
-                        document.createElement(
-                            "div"
-                        );
-
-                    bar.className =
-                        "bar";
-
-
-                    bar.style.height =
-                        height + "%";
-
-
-                    bar.title =
-                        `${record.manager}
-                         • GW${week.gameweek}
-                         • ${record.total} points`;
-
-
-                    const label =
-                        document.createElement(
-                            "div"
-                        );
-
-                    label.className =
-                        "bar-label";
-
-                    label.innerText =
-                        `GW${week.gameweek}`;
-
-
-                    bar.appendChild(
-                        label
-                    );
-
-
-                    group.appendChild(
-                        bar
-                    );
-
-                }
-            );
-
-
-            chart.appendChild(
-                group
-            );
-
-        }
-    );
+        container.appendChild(card);
+    });
 }
 
 

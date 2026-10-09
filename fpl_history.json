@@ -2,7 +2,7 @@
   {
     "gameweek": 5,
     "league_name": "Curry Club Round 5 Phals alive",
-    "updated": "08 Oct 2026 12:10",
+    "updated": "09 Oct 2026 08:23",
     "players": [
       {
         "entry": 3061020,
@@ -11,6 +11,8 @@
         "team": "FC DCB",
         "total": 367,
         "gw_points": 68,
+        "captain": "Haaland",
+        "captain_points": 12,
         "previous_rank": 1,
         "movement": 0
       },
@@ -21,6 +23,8 @@
         "team": "Snakes&Volleys",
         "total": 361,
         "gw_points": 44,
+        "captain": "Haaland",
+        "captain_points": 12,
         "previous_rank": 2,
         "movement": 0
       },
@@ -31,6 +35,8 @@
         "team": "ABCDE FC",
         "total": 359,
         "gw_points": 54,
+        "captain": "Calvert-Lewin",
+        "captain_points": 4,
         "previous_rank": 3,
         "movement": 0
       },
@@ -41,6 +47,8 @@
         "team": "Livin' Saliba Loca",
         "total": 356,
         "gw_points": 58,
+        "captain": "Haaland",
+        "captain_points": 12,
         "previous_rank": 4,
         "movement": 0
       },
@@ -51,6 +59,8 @@
         "team": "Gitten there my son",
         "total": 350,
         "gw_points": 38,
+        "captain": "Haaland",
+        "captain_points": 12,
         "previous_rank": 5,
         "movement": 0
       },
@@ -61,6 +71,8 @@
         "team": "Phoenix Cartwrights",
         "total": 346,
         "gw_points": 53,
+        "captain": "Calvert-Lewin",
+        "captain_points": 4,
         "previous_rank": 6,
         "movement": 0
       },
@@ -71,6 +83,8 @@
         "team": "Blame it on the boat",
         "total": 340,
         "gw_points": 47,
+        "captain": "Haaland",
+        "captain_points": 12,
         "previous_rank": 7,
         "movement": 0
       },
@@ -81,6 +95,8 @@
         "team": "Bhunarmy",
         "total": 338,
         "gw_points": 76,
+        "captain": "Semenyo",
+        "captain_points": 34,
         "previous_rank": 8,
         "movement": 0
       },
@@ -91,6 +107,8 @@
         "team": "Dropbear City",
         "total": 316,
         "gw_points": 52,
+        "captain": "Haaland",
+        "captain_points": 12,
         "previous_rank": 9,
         "movement": 0
       },
@@ -101,6 +119,8 @@
         "team": "shaun's Team",
         "total": 285,
         "gw_points": 54,
+        "captain": "Gibbs-White",
+        "captain_points": 4,
         "previous_rank": 10,
         "movement": 0
       }
