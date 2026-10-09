@@ -2,14 +2,56 @@
   {
     "gameweek": 5,
     "league_name": "Curry Club Round 5 Phals alive",
-    "updated": "09 Oct 2026 14:48",
+    "updated": "09 Oct 2026 20:32",
+    "chip_half": 1,
+    "chip_split_gw": 19,
+    "period": {
+      "number": 1,
+      "first_gw": 6,
+      "last_gw": 10,
+      "reset": true
+    },
     "players": [
       {
         "entry": 3061020,
         "rank": 1,
+        "league": "championship",
         "manager": "Daniel Brown",
         "team": "FC DCB",
-        "total": 367,
+        "total": 0,
+        "overall_total": 367,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": true,
+            "used_gw": null
+          }
+        ],
         "gw_points": 68,
         "captain": "Haaland",
         "captain_points": 12,
@@ -19,9 +61,43 @@
       {
         "entry": 518209,
         "rank": 2,
+        "league": "championship",
         "manager": "James Hedley",
         "team": "Snakes&Volleys",
-        "total": 361,
+        "total": 0,
+        "overall_total": 361,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": true,
+            "used_gw": null
+          }
+        ],
         "gw_points": 44,
         "captain": "Haaland",
         "captain_points": 12,
@@ -31,9 +107,43 @@
       {
         "entry": 7147625,
         "rank": 3,
+        "league": "championship",
         "manager": "David Kwong",
         "team": "ABCDE FC",
-        "total": 359,
+        "total": 0,
+        "overall_total": 359,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": false,
+            "used_gw": 3
+          }
+        ],
         "gw_points": 54,
         "captain": "Calvert-Lewin",
         "captain_points": 4,
@@ -43,9 +153,43 @@
       {
         "entry": 756483,
         "rank": 4,
+        "league": "championship",
         "manager": "Sean Bottamley",
         "team": "Livin' Saliba Loca",
-        "total": 356,
+        "total": 0,
+        "overall_total": 356,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": false,
+            "used_gw": 4
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": false,
+            "used_gw": 3
+          }
+        ],
         "gw_points": 58,
         "captain": "Haaland",
         "captain_points": 12,
@@ -55,9 +199,43 @@
       {
         "entry": 390134,
         "rank": 5,
+        "league": "championship",
         "manager": "oliver Green",
         "team": "Gitten there my son",
-        "total": 350,
+        "total": 0,
+        "overall_total": 350,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": false,
+            "used_gw": 4
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": false,
+            "used_gw": 1
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": false,
+            "used_gw": 3
+          }
+        ],
         "gw_points": 38,
         "captain": "Haaland",
         "captain_points": 12,
@@ -66,62 +244,232 @@
       },
       {
         "entry": 7009706,
-        "rank": 6,
+        "rank": 1,
+        "league": "challenger",
         "manager": "Darren Cartwright",
         "team": "Phoenix Cartwrights",
-        "total": 346,
+        "total": 0,
+        "overall_total": 346,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": true,
+            "used_gw": null
+          }
+        ],
         "gw_points": 53,
         "captain": "Calvert-Lewin",
         "captain_points": 4,
-        "previous_rank": 6,
+        "previous_rank": 1,
         "movement": 0
       },
       {
         "entry": 3581128,
-        "rank": 7,
+        "rank": 2,
+        "league": "challenger",
         "manager": "Jordan Gill",
         "team": "Blame it on the boat",
-        "total": 340,
+        "total": 0,
+        "overall_total": 340,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": false,
+            "used_gw": 3
+          }
+        ],
         "gw_points": 47,
         "captain": "Haaland",
         "captain_points": 12,
-        "previous_rank": 7,
+        "previous_rank": 2,
         "movement": 0
       },
       {
         "entry": 5021862,
-        "rank": 8,
+        "rank": 3,
+        "league": "challenger",
         "manager": "Andy Potter",
         "team": "Bhunarmy",
-        "total": 338,
+        "total": 0,
+        "overall_total": 338,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": true,
+            "used_gw": null
+          }
+        ],
         "gw_points": 76,
         "captain": "Semenyo",
         "captain_points": 34,
-        "previous_rank": 8,
+        "previous_rank": 3,
         "movement": 0
       },
       {
         "entry": 2289310,
-        "rank": 9,
+        "rank": 4,
+        "league": "challenger",
         "manager": "Chris Tyrrell",
         "team": "Dropbear City",
-        "total": 316,
+        "total": 0,
+        "overall_total": 316,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": false,
+            "used_gw": 2
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": true,
+            "used_gw": null
+          }
+        ],
         "gw_points": 52,
         "captain": "Haaland",
         "captain_points": 12,
-        "previous_rank": 9,
+        "previous_rank": 4,
         "movement": 0
       },
       {
         "entry": 1281784,
-        "rank": 10,
+        "rank": 5,
+        "league": "challenger",
         "manager": "shaun leigh",
         "team": "shaun's Team",
-        "total": 285,
+        "total": 0,
+        "overall_total": 285,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": false,
+            "used_gw": 3
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": true,
+            "used_gw": null
+          }
+        ],
         "gw_points": 54,
         "captain": "Gibbs-White",
         "captain_points": 4,
-        "previous_rank": 10,
+        "previous_rank": 5,
         "movement": 0
       }
     ]

@@ -15,6 +15,54 @@ app = Flask(__name__)
 LEAGUE_ID = 1459721
 HISTORY_FILE = "fpl_history.json"
 
+# Saved league membership + promotion/relegation history
+# (created automatically on first run)
+LEAGUES_FILE = "fpl_leagues.json"
+
+# OPTIONAL: choose the STARTING leagues using FPL entry IDs.
+# Leave both lists empty to auto-lock from the current standings
+# (top 5 = Championship, 6th-10th = Challenger) on first run.
+# After the first run, fpl_leagues.json is the source of truth
+# (it tracks promotions/relegations) - delete it to start again.
+MANUAL_LEAGUES = {
+    "championship": [],   # e.g. [1234567, 2345678, ...]
+    "challenger": []
+}
+
+# ---- Promotion / relegation ----
+# Every PERIOD_LENGTH gameweeks the bottom 2 of the Championship
+# (4th & 5th) swap with the top 2 of the Challenger league (1st & 2nd).
+PERIOD_LENGTH = 5
+
+# First gameweek of the game. None = start from the next gameweek
+# after the leagues are first locked in.
+GAME_START_GW = None
+
+# True  = league tables show points scored in the CURRENT period only
+#         (resets after each promotion/relegation). Recommended.
+# False = tables show full-season points; swaps are decided on
+#         season points at the end of each period.
+RESET_POINTS_EACH_PERIOD = True
+
+# ---- Curry for period winners ----
+# The manager in 1st place in each league when a period ends wins a curry.
+# True  = curries are kept (a manager who wins twice shows 2 curries)
+# False = only the winners of the most recent period show a curry
+CURRIES_STACK = True
+
+# ---- Chips ----
+# Each chip comes in two sets: one for GW1-19 and one for GW20-38.
+# First-set chips expire after the GW19 deadline.
+CHIP_SET_SPLIT_GW = 19
+
+# (name in the FPL data, short label, full name)
+CHIP_LIST = [
+    ("wildcard", "WC", "Wildcard"),
+    ("freehit", "FH", "Free Hit"),
+    ("bboost", "BB", "Bench Boost"),
+    ("3xc", "TC", "Triple Captain")
+]
+
 FPL_API = "https://fantasy.premierleague.com/api"
 
 HEADERS = {
@@ -209,6 +257,329 @@ def save_snapshot(snapshot):
         )
 
 
+# ============================================================
+# LEAGUE MEMBERSHIP
+# ============================================================
+
+def load_league_state():
+    """Load saved league membership and swap history."""
+
+    if not os.path.exists(LEAGUES_FILE):
+        return None
+
+    try:
+        with open(LEAGUES_FILE, "r", encoding="utf-8") as file:
+            saved = json.load(file)
+    except Exception:
+        return None
+
+    if not saved:
+        return None
+
+    # Upgrade the old format ({entry: league}) to the new one
+    if "assignments" not in saved:
+        saved = {
+            "assignments": saved,
+            "start_gw": None,
+            "periods_done": 0,
+            "swaps": []
+        }
+
+    return saved
+
+
+def save_league_state(state):
+    """Save league membership and swap history."""
+
+    with open(LEAGUES_FILE, "w", encoding="utf-8") as file:
+        json.dump(state, file, indent=2)
+
+
+def get_league_state(standings, gameweek):
+    """Load the league state, or create it on first run."""
+
+    state = load_league_state()
+
+    if state is None:
+
+        assignments = {}
+
+        if MANUAL_LEAGUES["championship"] or MANUAL_LEAGUES["challenger"]:
+            for entry in MANUAL_LEAGUES["championship"]:
+                assignments[str(entry)] = "championship"
+            for entry in MANUAL_LEAGUES["challenger"]:
+                assignments[str(entry)] = "challenger"
+        else:
+            # Lock in the current top 5 / 6th-10th
+            for index, row in enumerate(standings[:10]):
+                assignments[str(row.get("entry"))] = (
+                    "championship" if index < 5 else "challenger"
+                )
+
+        state = {
+            "assignments": assignments,
+            "start_gw": GAME_START_GW or (gameweek + 1),
+            "periods_done": 0,
+            "swaps": []
+        }
+
+        save_league_state(state)
+
+    elif state.get("start_gw") is None:
+
+        state["start_gw"] = GAME_START_GW or (gameweek + 1)
+        save_league_state(state)
+
+    return state
+
+
+def cumulative_points(history, gameweek):
+    """A manager's season points (after hits) up to and including a GW."""
+
+    if gameweek < 1:
+        return 0
+
+    best_event = 0
+    best_total = 0
+
+    for gw in history.get("current", []):
+        event = gw.get("event", 0)
+
+        if best_event < event <= gameweek:
+            best_event = event
+            best_total = gw.get("total_points", 0)
+
+    return best_total
+
+
+def points_between(history, first_gw, last_gw):
+    """Points scored from first_gw to last_gw inclusive."""
+
+    return (
+        cumulative_points(history, last_gw)
+        - cumulative_points(history, first_gw - 1)
+    )
+
+
+def period_bounds(start_gw, period_index):
+    """First and last Gameweek of a period (period_index starts at 0)."""
+
+    first = start_gw + period_index * PERIOD_LENGTH
+
+    return first, first + PERIOD_LENGTH - 1
+
+
+def basis_start(period_first_gw):
+    """First Gameweek counted when ranking inside a period."""
+
+    return period_first_gw if RESET_POINTS_EACH_PERIOD else 1
+
+
+def rank_members(state, league, histories, totals, first_gw, last_gw):
+    """Entry IDs of one league, best first."""
+
+    members = [
+        int(entry)
+        for entry, name in state["assignments"].items()
+        if name == league and int(entry) in histories
+    ]
+
+    def sort_key(entry):
+        points = points_between(
+            histories[entry], first_gw, last_gw
+        )
+        return (-points, -totals.get(entry, 0))
+
+    return sorted(members, key=sort_key)
+
+
+def apply_pending_swaps(state, histories, totals, gameweek):
+    """Promote/relegate for every period that has now finished."""
+
+    changed = False
+
+    while True:
+
+        first, last = period_bounds(
+            state["start_gw"],
+            state["periods_done"]
+        )
+
+        # Period not finished yet
+        if last > gameweek:
+            break
+
+        begin = basis_start(first)
+
+        champ = rank_members(
+            state, "championship", histories, totals, begin, last
+        )
+        chal = rank_members(
+            state, "challenger", histories, totals, begin, last
+        )
+
+        # Period winners (1st in each league) win a curry
+        winners = []
+
+        if champ:
+            winners.append(champ[0])
+        if chal:
+            winners.append(chal[0])
+
+        relegated = []
+        promoted = []
+
+        if len(champ) >= 2 and len(chal) >= 2:
+
+            relegated = champ[-2:]    # 4th & 5th
+            promoted = chal[:2]       # 1st & 2nd
+
+            for entry in relegated:
+                state["assignments"][str(entry)] = "challenger"
+
+            for entry in promoted:
+                state["assignments"][str(entry)] = "championship"
+
+        state["swaps"].append({
+            "period": state["periods_done"] + 1,
+            "gameweeks": [first, last],
+            "relegated": relegated,
+            "promoted": promoted,
+            "winners": winners
+        })
+
+        state["periods_done"] += 1
+        changed = True
+
+    if changed:
+        save_league_state(state)
+
+
+def get_league_rows(standings, gameweek):
+    """Return (rows, state): league members ranked inside their league.
+
+    Also applies any promotion/relegation that is now due.
+    """
+
+    state = get_league_state(standings, gameweek)
+
+    by_entry = {row["entry"]: row for row in standings}
+
+    member_ids = [
+        int(entry)
+        for entry in state["assignments"]
+        if int(entry) in by_entry
+    ]
+
+    histories = {
+        entry: get_manager_history(entry)
+        for entry in member_ids
+    }
+
+    totals = {
+        entry: by_entry[entry].get("total", 0)
+        for entry in member_ids
+    }
+
+    apply_pending_swaps(state, histories, totals, gameweek)
+
+    # Current period (after any swaps)
+    first, last = period_bounds(
+        state["start_gw"],
+        state["periods_done"]
+    )
+
+    begin = basis_start(first)
+    end = max(min(last, gameweek), begin - 1)
+
+    last_swap = state["swaps"][-1] if state["swaps"] else None
+
+    rows = []
+
+    for entry in member_ids:
+
+        league = state["assignments"][str(entry)]
+
+        # Curries won by this manager
+        if CURRIES_STACK:
+            curries = sum(
+                1 for swap in state["swaps"]
+                if entry in swap.get("winners", [])
+            )
+        elif last_swap and entry in last_swap.get("winners", []):
+            curries = 1
+        else:
+            curries = 0
+
+        last_move = None
+
+        if last_swap:
+            if entry in last_swap["promoted"]:
+                last_move = "promoted"
+            elif entry in last_swap["relegated"]:
+                last_move = "relegated"
+
+        rows.append({
+            **by_entry[entry],
+            "league": league,
+            "history": histories[entry],
+            "overall_total": totals[entry],
+            "points": points_between(histories[entry], begin, end),
+            "last_move": last_move,
+            "curries": curries
+        })
+
+    for name in ("championship", "challenger"):
+
+        group = sorted(
+            [r for r in rows if r["league"] == name],
+            key=lambda r: (-r["points"], -r["overall_total"])
+        )
+
+        for position, r in enumerate(group, start=1):
+            r["league_rank"] = position
+
+    rows.sort(
+        key=lambda r: (
+            0 if r["league"] == "championship" else 1,
+            r["league_rank"]
+        )
+    )
+
+    return rows, state
+
+
+def get_chip_status(history, chip_half):
+    """Which chips a manager has used / still has in the current half.
+
+    chip_half = 1 (GW1-19) or 2 (GW20-38).
+    """
+
+    if chip_half == 1:
+        first_gw, last_gw = 1, CHIP_SET_SPLIT_GW
+    else:
+        first_gw, last_gw = CHIP_SET_SPLIT_GW + 1, 38
+
+    used = {}
+
+    for chip in history.get("chips", []):
+        event = chip.get("event", 0)
+
+        if first_gw <= event <= last_gw:
+            used[chip.get("name")] = event
+
+    return [
+        {
+            "key": key,
+            "short": short,
+            "name": name,
+            "available": key not in used,
+            "used_gw": used.get(key)
+        }
+        for key, short, name in CHIP_LIST
+    ]
+
+
 def build_snapshot():
     """Build a complete current league snapshot."""
 
@@ -216,11 +587,25 @@ def build_snapshot():
 
     gameweek = get_current_gameweek()
 
+    league_rows, state = get_league_rows(standings, gameweek)
+
+    period_first, period_last = period_bounds(
+        state["start_gw"],
+        state["periods_done"]
+    )
+
+    period_number = state["periods_done"] + 1
+
+    # Chips: which set of chips is currently in play
+    chip_half = 1 if gameweek < CHIP_SET_SPLIT_GW else 2
+
     # Fetched once per update, shared by every manager
     player_names = get_player_names()
     live_points = get_live_points(gameweek)
 
     previous = get_previous_snapshot()
+
+    previous_period = (previous or {}).get("period", {}).get("number")
 
     previous_players = {}
 
@@ -230,7 +615,7 @@ def build_snapshot():
 
     players = []
 
-    for row in standings:
+    for row in league_rows:
 
         entry_id = row.get("entry")
 
@@ -244,21 +629,16 @@ def build_snapshot():
             "Unknown Team"
         )
 
-        rank = row.get(
-            "rank",
-            0
-        )
+        rank = row["league_rank"]      # position WITHIN their league
+        league = row["league"]
 
-        total = row.get(
-            "total",
-            0
-        )
+        total = row["points"]    # points used for the league table
 
         # ----------------------------------------------------
         # Get Gameweek points
         # ----------------------------------------------------
 
-        manager_history = get_manager_history(entry_id)
+        manager_history = row["history"]
 
         current_history = manager_history.get(
             "current",
@@ -298,15 +678,20 @@ def build_snapshot():
                 break
 
         # ----------------------------------------------------
-        # Previous position
+        # Previous position (within the same league)
         # ----------------------------------------------------
 
         previous_rank = None
 
-        if entry_id in previous_players:
-            previous_rank = previous_players[
-                entry_id
-            ].get("rank")
+        prev = previous_players.get(entry_id)
+
+        # Only compare within the same league AND the same period
+        if (
+            prev
+            and prev.get("league") == league
+            and previous_period == period_number
+        ):
+            previous_rank = prev.get("rank")
 
         movement = 0
 
@@ -316,9 +701,14 @@ def build_snapshot():
         players.append({
             "entry": entry_id,
             "rank": rank,
+            "league": league,
             "manager": manager_name,
             "team": team_name,
             "total": total,
+            "overall_total": row["overall_total"],
+            "last_move": row["last_move"],
+            "curries": row["curries"],
+            "chips": get_chip_status(row["history"], chip_half),
             "gw_points": gw_points,
             "captain": captain_name,
             "captain_points": captain_points,
@@ -327,7 +717,10 @@ def build_snapshot():
         })
 
     players.sort(
-        key=lambda x: x["rank"]
+        key=lambda x: (
+            0 if x["league"] == "championship" else 1,
+            x["rank"]
+        )
     )
 
     snapshot = {
@@ -336,6 +729,14 @@ def build_snapshot():
         "updated": datetime.now().strftime(
             "%d %b %Y %H:%M"
         ),
+        "chip_half": chip_half,
+        "chip_split_gw": CHIP_SET_SPLIT_GW,
+        "period": {
+            "number": period_number,
+            "first_gw": period_first,
+            "last_gw": period_last,
+            "reset": RESET_POINTS_EACH_PERIOD
+        },
         "players": players
     }
 
@@ -344,6 +745,95 @@ def build_snapshot():
 # ============================================================
 # WHATSAPP GRAPHIC
 # ============================================================
+
+_CURRY_ICONS = {}
+
+
+def get_curry_icon(size):
+    """A small curry picture for the PNGs.
+
+    Uses the system colour-emoji font if one can be found,
+    otherwise draws a simple curry bowl.
+    """
+
+    if size in _CURRY_ICONS:
+        return _CURRY_ICONS[size]
+
+    icon = None
+
+    candidates = [
+        ("seguiemj.ttf", 109),                                   # Windows
+        ("/System/Library/Fonts/Apple Color Emoji.ttc", 160),    # Mac
+        ("NotoColorEmoji.ttf", 109),                             # Linux
+        ("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", 109)
+    ]
+
+    for name, font_size in candidates:
+        try:
+            font = ImageFont.truetype(name, font_size)
+
+            canvas = Image.new("RGBA", (260, 260), (0, 0, 0, 0))
+
+            ImageDraw.Draw(canvas).text(
+                (10, 10),
+                "🍛",
+                font=font,
+                embedded_color=True
+            )
+
+            box = canvas.getbbox()
+
+            if box:
+                glyph = canvas.crop(box)
+                glyph.thumbnail((size, size), Image.LANCZOS)
+
+                icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+                icon.paste(
+                    glyph,
+                    ((size - glyph.width) // 2, (size - glyph.height) // 2)
+                )
+                break
+
+        except Exception:
+            continue
+
+    if icon is None:
+
+        # Fallback: draw a little bowl of curry
+        s = size * 4
+
+        canvas = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+        d = ImageDraw.Draw(canvas)
+
+        # Bowl
+        d.pieslice(
+            (s * 0.05, s * 0.12, s * 0.95, s * 1.0),
+            0, 180,
+            fill="#F5F5F5",
+            outline="#B0B0B0",
+            width=max(2, s // 40)
+        )
+
+        # Curry
+        d.ellipse(
+            (s * 0.12, s * 0.40, s * 0.88, s * 0.70),
+            fill="#E8892B",
+            outline="#B8641A",
+            width=max(2, s // 40)
+        )
+
+        # Rice / highlight
+        d.ellipse(
+            (s * 0.30, s * 0.46, s * 0.55, s * 0.58),
+            fill="#F4B25F"
+        )
+
+        icon = canvas.resize((size, size), Image.LANCZOS)
+
+    _CURRY_ICONS[size] = icon
+
+    return icon
+
 
 def create_whatsapp_graphic(snapshot):
     """Create a WhatsApp-friendly PNG of the league tables."""
@@ -407,14 +897,32 @@ def create_whatsapp_graphic(snapshot):
 
     draw.text(
         (52, 88),
-        f"{snapshot['league_name']}  •  GAMEWEEK {snapshot['gameweek']}",
+        (
+            f"{snapshot['league_name']}  •  GAMEWEEK {snapshot['gameweek']}"
+            f"  •  PERIOD {snapshot['period']['number']}"
+            f" (GW {snapshot['period']['first_gw']}"
+            f"-{snapshot['period']['last_gw']})"
+        ),
         fill=dark,
         font=small_font
     )
 
-    # Split league
-    top5 = snapshot["players"][:5]
-    bottom5 = snapshot["players"][5:10]
+    # Split by fixed league membership
+    top5 = [
+        p for p in snapshot["players"]
+        if p["league"] == "championship"
+    ]
+    bottom5 = [
+        p for p in snapshot["players"]
+        if p["league"] == "challenger"
+    ]
+
+    points_label = (
+        "PERIOD" if snapshot["period"]["reset"] else "TOTAL"
+    )
+
+    tag_font = load_font(True, 15)
+    chip_font = load_font(True, 13)
 
     def draw_league_card(
         x,
@@ -485,23 +993,102 @@ def create_whatsapp_graphic(snapshot):
                 font=name_font
             )
 
-            # Manager
+            # Manager (+ curry for period winners)
             manager = player["manager"]
+
+            curries = player.get("curries", 0)
+
+            manager_text = manager[:18] if curries else manager[:24]
 
             draw.text(
                 (x + 95, row_y + 18),
-                manager[:24],
+                manager_text,
                 fill=white,
                 font=name_font
             )
 
-            # Team
+            if curries:
+                icon_x = int(
+                    x + 95
+                    + draw.textlength(manager_text, font=name_font)
+                    + 8
+                )
+
+                icon = get_curry_icon(28)
+
+                image.paste(icon, (icon_x, row_y + 17), icon)
+
+                if curries > 1:
+                    draw.text(
+                        (icon_x + 32, row_y + 23),
+                        f"x{curries}",
+                        fill=gold,
+                        font=small_font
+                    )
+
+            # Team (+ promoted / relegated tag)
+            last_move = player.get("last_move")
+
+            if last_move:
+                team_text = player["team"][:20]
+            else:
+                team_text = player["team"][:28]
+
             draw.text(
                 (x + 95, row_y + 50),
-                player["team"][:28],
+                team_text,
                 fill=grey,
                 font=small_font
             )
+
+            if last_move:
+                tag_x = (
+                    x + 95
+                    + draw.textlength(team_text, font=small_font)
+                    + 10
+                )
+
+                if last_move == "promoted":
+                    tag_text = "▲ PROMOTED"
+                    tag_colour = green
+                else:
+                    tag_text = "▼ RELEGATED"
+                    tag_colour = red
+
+                draw.text(
+                    (tag_x, row_y + 54),
+                    tag_text,
+                    fill=tag_colour,
+                    font=tag_font
+                )
+
+            # Chips (green = available, struck through = used)
+            chip_x = x + 95
+
+            for chip in player.get("chips", []):
+
+                chip_colour = green if chip["available"] else "#56705F"
+
+                draw.text(
+                    (chip_x, row_y + 71),
+                    chip["short"],
+                    fill=chip_colour,
+                    font=chip_font
+                )
+
+                chip_w = draw.textlength(chip["short"], font=chip_font)
+
+                if not chip["available"]:
+                    draw.line(
+                        (
+                            chip_x - 2, row_y + 79,
+                            chip_x + chip_w + 2, row_y + 79
+                        ),
+                        fill=chip_colour,
+                        width=2
+                    )
+
+                chip_x += chip_w + 14
 
             # Overall points
             draw.text(
@@ -513,7 +1100,7 @@ def create_whatsapp_graphic(snapshot):
 
             draw.text(
                 (x + w - 205, row_y + 52),
-                "TOTAL",
+                points_label,
                 fill=grey,
                 font=small_font
             )
@@ -586,6 +1173,26 @@ def create_whatsapp_graphic(snapshot):
         font=small_font
     )
 
+    if snapshot.get("chip_half", 1) == 1:
+        chip_note = (
+            "Chips: green = available, struck through = used  •  "
+            f"first-set chips expire after the GW{snapshot['chip_split_gw']} "
+            "deadline"
+        )
+    else:
+        chip_note = (
+            "Chips: green = available, struck through = used  •  "
+            "second-set chips (GW"
+            f"{snapshot['chip_split_gw'] + 1}-38)"
+        )
+
+    draw.text(
+        (50, 980),
+        chip_note,
+        fill=grey,
+        font=small_font
+    )
+
     # Return image in memory
     output = BytesIO()
 
@@ -618,6 +1225,10 @@ def build_transfers_data(gameweek):
     player_names = get_player_names()
     live_points = get_live_points(gameweek)
 
+    # Same league members as the dashboard (always uses the latest
+    # finished Gameweek so promotion/relegation stays in sync)
+    league_rows, _ = get_league_rows(standings, get_current_gameweek())
+
     chip_labels = {
         "wildcard": "WILDCARD",
         "freehit": "FREE HIT",
@@ -628,12 +1239,11 @@ def build_transfers_data(gameweek):
 
     managers = []
 
-    # Same top 10 as the dashboard
-    for row in standings[:10]:
+    for row in league_rows:
 
         entry_id = row.get("entry")
 
-        history = get_manager_history(entry_id)
+        history = row["history"]
 
         hit_cost = 0
         for gw in history.get("current", []):
@@ -668,7 +1278,9 @@ def build_transfers_data(gameweek):
             })
 
         managers.append({
-            "rank": row.get("rank", 0),
+            "rank": row["league_rank"],
+            "league": row["league"],
+            "curries": row["curries"],
             "manager": row.get("player_name", "Unknown Manager"),
             "team": row.get("entry_name", "Unknown Team"),
             "hit_cost": hit_cost,
@@ -676,7 +1288,12 @@ def build_transfers_data(gameweek):
             "transfers": transfer_rows
         })
 
-    managers.sort(key=lambda m: m["rank"])
+    managers.sort(
+        key=lambda m: (
+            0 if m["league"] == "championship" else 1,
+            m["rank"]
+        )
+    )
 
     return {
         "league_name": league_name,
@@ -737,8 +1354,8 @@ def create_transfers_graphic(data):
         return 85 + lines * transfer_h + 15
 
     managers = data["managers"]
-    left = managers[:5]
-    right = managers[5:10]
+    left = [m for m in managers if m["league"] == "championship"]
+    right = [m for m in managers if m["league"] == "challenger"]
 
     def column_height(column):
         if not column:
@@ -782,12 +1399,35 @@ def create_transfers_graphic(data):
             )
 
             # Manager + team
+            name_text = f"{m['rank']}. {m['manager'][:26]}"
+
             draw.text(
                 (x + 25, y + 15),
-                f"{m['rank']}. {m['manager'][:26]}",
+                name_text,
                 fill=white,
                 font=name_font
             )
+
+            curries = m.get("curries", 0)
+
+            if curries:
+                icon_x = int(
+                    x + 25
+                    + draw.textlength(name_text, font=name_font)
+                    + 8
+                )
+
+                icon = get_curry_icon(28)
+
+                image.paste(icon, (icon_x, y + 14), icon)
+
+                if curries > 1:
+                    draw.text(
+                        (icon_x + 32, y + 20),
+                        f"x{curries}",
+                        fill=green,
+                        font=small_font
+                    )
 
             draw.text(
                 (x + 25, y + 48),
@@ -1396,6 +2036,62 @@ button:hover {
 
 
 /* ==========================================================
+   CHIPS
+   ========================================================== */
+
+.chips {
+
+    display: flex;
+
+    gap: 4px;
+
+    margin-top: 6px;
+}
+
+.chip {
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    padding: 2px 6px;
+
+    border-radius: 6px;
+
+    cursor: default;
+}
+
+.chip.avail {
+
+    background: rgba(0, 255, 135, 0.15);
+
+    color: #00ff87;
+
+    border: 1px solid rgba(0, 255, 135, 0.4);
+}
+
+.chip.used {
+
+    background: transparent;
+
+    color: #5d776c;
+
+    text-decoration: line-through;
+
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chip-note {
+
+    color: #76958a;
+
+    font-size: 12px;
+
+    margin: 0 0 12px;
+}
+
+
+/* ==========================================================
    CAPTAINS
    ========================================================== */
 
@@ -1543,6 +2239,8 @@ button:hover {
 
 
 <div class="container">
+
+    <div id="chipNote" class="chip-note"></div>
 
     <div class="leagues">
 
@@ -1692,20 +2390,30 @@ function renderDashboard(data) {
     document.getElementById(
         "leagueName"
     ).innerText =
-        `${data.league_name} • GAMEWEEK ${data.gameweek}`;
+        `${data.league_name} • GAMEWEEK ${data.gameweek}`
+        + ` • PERIOD ${data.period.number}`
+        + ` (GW ${data.period.first_gw}-${data.period.last_gw})`;
 
 
     const top5 =
-        data.players.slice(
-            0,
-            5
+        data.players.filter(
+            p => p.league === "championship"
         );
 
     const bottom5 =
-        data.players.slice(
-            5,
-            10
+        data.players.filter(
+            p => p.league === "challenger"
         );
+
+
+    document.getElementById(
+        "chipNote"
+    ).innerText =
+        data.chip_half === 1
+            ? `Chips: green = available, struck through = used. `
+              + `First-set chips expire after the GW${data.chip_split_gw} deadline.`
+            : `Chips: green = available, struck through = used. `
+              + `Second-set chips (GW${data.chip_split_gw + 1}-38).`;
 
 
     renderPlayers(
@@ -1741,9 +2449,56 @@ function renderPlayers(
 
     container.innerHTML = "";
 
+    const periodLabel =
+        (currentData && currentData.period && currentData.period.reset)
+            ? "period"
+            : "total";
+
 
     players.forEach(
         player => {
+
+            const chipsHtml =
+                (player.chips || []).map(chip => {
+
+                    const cls =
+                        chip.available ? "avail" : "used";
+
+                    const tip =
+                        chip.available
+                            ? `${chip.name}: available`
+                            : `${chip.name}: used in GW${chip.used_gw}`;
+
+                    return `<span class="chip ${cls}" title="${tip}">`
+                         + `${chip.short}</span>`;
+
+                }).join("");
+
+            let curryTag = "";
+
+            if (player.curries > 3) {
+
+                curryTag = ` 🍛 x${player.curries}`;
+
+            }
+            else if (player.curries > 0) {
+
+                curryTag = " " + "🍛".repeat(player.curries);
+            }
+
+            let moveTag = "";
+
+            if (player.last_move === "promoted") {
+
+                moveTag =
+                    `<span class="movement up">▲ PROMOTED</span>`;
+
+            }
+            else if (player.last_move === "relegated") {
+
+                moveTag =
+                    `<span class="movement down">▼ RELEGATED</span>`;
+            }
 
             let medal = "";
 
@@ -1845,7 +2600,11 @@ function renderPlayers(
                             player.manager
                         )}
 
+                        ${curryTag}
+
                         ${movement}
+
+                        ${moveTag}
                     </div>
 
                     <div class="team-name">
@@ -1854,11 +2613,21 @@ function renderPlayers(
                         )}
                     </div>
 
+                    <div class="chips">
+                        ${chipsHtml}
+                    </div>
+
                 </div>
 
                 <div class="total">
 
                     ${player.total}
+
+                    <br>
+
+                    <small style="font-size: 11px; color: #76958a;">
+                        ${periodLabel}
+                    </small>
 
                 </div>
 
