@@ -1,5 +1,5 @@
 {
-  "updated": "10 Oct 2026 09:19",
+  "updated": "10 Oct 2026 22:39",
   "managers": {
     "3061020": {
       "manager": "Daniel Brown",
@@ -72,9 +72,14 @@
     "1281784": {
       "manager": "shaun leigh",
       "team": "shaun's Team",
-      "hits": [],
-      "total_points": 0,
-      "total_hits": 0
+      "hits": [
+        {
+          "gw": 6,
+          "points": 12
+        }
+      ],
+      "total_points": 12,
+      "total_hits": 3
     }
   }
 }

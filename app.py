@@ -115,6 +115,22 @@ def get_current_gameweek():
     return max(finished_events)
 
 
+def get_live_gameweek():
+    """Return the gameweek being played now (or the last finished one)."""
+
+    data = fpl_get("bootstrap-static/")
+
+    events = data.get("events", [])
+
+    for event in events:
+        if event.get("is_current"):
+            return event["id"]
+
+    finished = [e["id"] for e in events if e.get("finished")]
+
+    return max(finished) if finished else 0
+
+
 def get_league():
     """Get current league standings."""
 
@@ -465,8 +481,11 @@ def apply_pending_swaps(state, histories, totals, gameweek):
         save_league_state(state)
 
 
-def get_league_rows(standings, gameweek):
+def get_league_rows(standings, gameweek, display_gw=None):
     """Return (rows, state): league members ranked inside their league.
+
+    gameweek   = last FINISHED gameweek (used for promotion/relegation)
+    display_gw = gameweek being shown (live). None = skip live data.
 
     Also applies any promotion/relegation that is now due.
     """
@@ -500,7 +519,11 @@ def get_league_rows(standings, gameweek):
     )
 
     begin = basis_start(first)
-    end = max(min(last, gameweek), begin - 1)
+
+    live_gw = display_gw or gameweek
+    end = max(min(last, live_gw), begin - 1)
+
+    live_points = get_live_points(live_gw) if display_gw else {}
 
     last_swap = state["swaps"][-1] if state["swaps"] else None
 
@@ -529,12 +552,68 @@ def get_league_rows(standings, gameweek):
             elif entry in last_swap["relegated"]:
                 last_move = "relegated"
 
+        history = histories[entry]
+
+        # ---- Gameweek points (live if FPL hasn't finalised them) ----
+        picks_data = {"picks": []}
+        gw_points = 0
+        gw_hit = 0
+        extra = 0     # live points not yet in FPL's history
+
+        if display_gw:
+
+            picks_data = get_manager_picks(entry, live_gw)
+
+            hist_row = next(
+                (g for g in history.get("current", [])
+                 if g.get("event") == live_gw),
+                None
+            )
+
+            if hist_row:
+                gross = hist_row.get("points", 0)
+                gw_hit = hist_row.get("event_transfers_cost", 0)
+            else:
+                picks = picks_data.get("picks", [])
+
+                # multiplier is 0 for benched players, 2 for captain, etc.
+                gross = sum(
+                    live_points.get(p["element"], 0) * p.get("multiplier", 1)
+                    for p in picks
+                )
+
+                # Auto-subs, once FPL has applied them to the picks data
+                multipliers = {
+                    p["element"]: p.get("multiplier", 1) for p in picks
+                }
+
+                for sub in picks_data.get("automatic_subs", []):
+                    gross += live_points.get(sub["element_in"], 0)
+                    gross -= (
+                        live_points.get(sub["element_out"], 0)
+                        * multipliers.get(sub["element_out"], 1)
+                    )
+
+                gw_hit = picks_data.get("entry_history", {}).get(
+                    "event_transfers_cost", 0
+                )
+
+            # Green number = gameweek points AFTER the transfer hit
+            gw_points = gross - gw_hit
+
+            if not hist_row and first <= live_gw <= last:
+                extra = gw_points
+
         rows.append({
             **by_entry[entry],
             "league": league,
-            "history": histories[entry],
+            "history": history,
             "overall_total": totals[entry],
-            "points": points_between(histories[entry], begin, end),
+            # period total = finished gameweeks + live gameweek
+            "points": points_between(history, begin, end) + extra,
+            "gw_points": gw_points,
+            "gw_hit": gw_hit,
+            "picks": picks_data,
             "last_move": last_move,
             "curries": curries
         })
@@ -658,9 +737,10 @@ def build_snapshot():
 
     league_name, standings = get_league()
 
-    gameweek = get_current_gameweek()
+    finished_gw = get_current_gameweek()     # for promotion/relegation
+    gameweek = get_live_gameweek()           # everything displayed
 
-    league_rows, state = get_league_rows(standings, gameweek)
+    league_rows, state = get_league_rows(standings, finished_gw, gameweek)
 
     try:
         record_hits(league_rows)
@@ -710,37 +790,14 @@ def build_snapshot():
         rank = row["league_rank"]      # position WITHIN their league
         league = row["league"]
 
-        total = row["points"]    # points used for the league table
+        total = row["points"]    # period total (includes live gameweek)
 
         # ----------------------------------------------------
-        # Get Gameweek points
+        # Gameweek points (live) - worked out in get_league_rows
         # ----------------------------------------------------
 
-        manager_history = row["history"]
-
-        current_history = manager_history.get(
-            "current",
-            []
-        )
-
-        gw_points = 0
-        hit_cost = 0
-
-        matching_gw = [
-            x for x in current_history
-            if x.get("event") == gameweek
-        ]
-
-        if matching_gw:
-            gw_points = matching_gw[0].get(
-                "points",
-                0
-            )
-
-            hit_cost = matching_gw[0].get(
-                "event_transfers_cost",
-                0
-            )
+        gw_points = row["gw_points"]
+        hit_cost = row["gw_hit"]
 
         # ----------------------------------------------------
         # Captain for this Gameweek
@@ -749,7 +806,7 @@ def build_snapshot():
         captain_name = "—"
         captain_points = 0
 
-        picks_data = get_manager_picks(entry_id, gameweek)
+        picks_data = row["picks"]
 
         for pick in picks_data.get("picks", []):
             if pick.get("is_captain"):
@@ -810,6 +867,7 @@ def build_snapshot():
 
     snapshot = {
         "gameweek": gameweek,
+        "live": gameweek > finished_gw,
         "league_name": league_name,
         "updated": datetime.now().strftime(
             "%d %b %Y %H:%M"
@@ -1072,6 +1130,10 @@ def create_whatsapp_graphic(snapshot):
     tag_font = load_font(True, 15)
     chip_font = load_font(True, 13)
 
+    gw_label = f"GW{snapshot['gameweek']}" + (
+        " LIVE" if snapshot.get("live") else ""
+    )
+
     def draw_league_card(
         x,
         y,
@@ -1282,7 +1344,7 @@ def create_whatsapp_graphic(snapshot):
 
                 chip_x += chip_w + 14
 
-            # Overall points
+            # Period total (white)
             draw.text(
                 (x + w - 205, row_y + 18),
                 str(player["total"]),
@@ -1297,12 +1359,19 @@ def create_whatsapp_graphic(snapshot):
                 font=small_font
             )
 
-            # GW points
-            gw_text = f"+{player['gw_points']} GW"
+            # Live gameweek points (green)
+            gw_text = f"+{player['gw_points']}"
 
             draw.text(
-                (x + w - 100, row_y + 35),
+                (x + w - 115, row_y + 18),
                 gw_text,
+                fill=green,
+                font=points_font
+            )
+
+            draw.text(
+                (x + w - 115, row_y + 52),
+                gw_label,
                 fill=green,
                 font=small_font
             )
@@ -1424,9 +1493,12 @@ def build_transfers_data(gameweek):
     player_names = get_player_names()
     live_points = get_live_points(gameweek)
 
-    # Same league members as the dashboard (always uses the latest
-    # finished Gameweek so promotion/relegation stays in sync)
-    league_rows, _ = get_league_rows(standings, get_current_gameweek())
+    # Same league members as the dashboard (finished gameweek keeps
+    # promotion/relegation in sync, live gameweek keeps ranks in sync)
+    finished_gw = get_current_gameweek()
+    live_gw = get_live_gameweek()
+
+    league_rows, _ = get_league_rows(standings, finished_gw, live_gw)
 
     chip_labels = {
         "wildcard": "WILDCARD",
@@ -1445,10 +1517,14 @@ def build_transfers_data(gameweek):
         history = row["history"]
 
         hit_cost = 0
-        for gw in history.get("current", []):
-            if gw.get("event") == gameweek:
-                hit_cost = gw.get("event_transfers_cost", 0)
-                break
+
+        if gameweek == live_gw:
+            hit_cost = row["gw_hit"]
+        else:
+            for gw in history.get("current", []):
+                if gw.get("event") == gameweek:
+                    hit_cost = gw.get("event_transfers_cost", 0)
+                    break
 
         chips = [
             chip_labels.get(c["name"], c["name"].upper())
@@ -1851,12 +1927,12 @@ def download_transfers():
 
     try:
 
-        # Defaults to the latest finished Gameweek (same as the dashboard).
+        # Defaults to the live Gameweek (same as the dashboard).
         # Use /download-transfers?gw=12 to pick a specific one.
         gameweek = request.args.get("gw", type=int)
 
         if not gameweek:
-            gameweek = get_current_gameweek()
+            gameweek = get_live_gameweek()
 
         data = build_transfers_data(gameweek)
 
@@ -2163,8 +2239,8 @@ button:hover {
     grid-template-columns:
         55px
         1fr
-        80px
-        85px;
+        90px
+        95px;
 
     align-items: center;
 
@@ -2240,6 +2316,8 @@ button:hover {
     font-size: 21px;
 
     font-weight: 900;
+
+    color: #FFFFFF;
 }
 
 .gw {
@@ -2904,6 +2982,11 @@ function renderPlayers(
             ? "period"
             : "total";
 
+    const gwLabel =
+        currentData
+            ? `GW${currentData.gameweek}` + (currentData.live ? " LIVE" : "")
+            : "GW";
+
 
     players.forEach(
         player => {
@@ -3088,7 +3171,7 @@ function renderPlayers(
                     <br>
 
                     <small style="font-size: 11px; color: #76958a;">
-                        ${periodLabel}
+                        ${periodLabel} total
                     </small>
 
                 </div>
@@ -3099,7 +3182,7 @@ function renderPlayers(
                     <br>
 
                     <small>
-                        GW
+                        ${gwLabel}
                     </small>
 
                 </div>
