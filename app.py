@@ -2750,6 +2750,7 @@ button:hover {
 <script>
 
 let currentData = null;
+let lastHitsData = null;
 
 
 /* ==========================================================
@@ -3188,6 +3189,8 @@ function closeHits() {
 
     // Wipe the data from the page when closed
     document.getElementById("hitsResults").innerHTML = "";
+
+    lastHitsData = null;
 }
 
 async function unlockHits() {
@@ -3234,6 +3237,8 @@ async function unlockHits() {
 
 function renderHits(data) {
 
+    lastHitsData = data;
+
     let rows = "";
 
     data.managers.forEach((m, index) => {
@@ -3265,6 +3270,11 @@ function renderHits(data) {
 
     document.getElementById("hitsResults").innerHTML = `
 
+        <button onclick="downloadHitsPng()"
+                style="margin-bottom: 15px;">
+            📸 SAVE AS PNG
+        </button>
+
         <div class="hits-summary">
 
             Points dropped on hits this season:
@@ -3292,6 +3302,255 @@ function renderHits(data) {
 
         </table>
     `;
+}
+
+
+/* ==========================================================
+   HITS TRACKER - SAVE AS PNG
+   ========================================================== */
+
+function wrapText(ctx, text, maxWidth) {
+
+    const words = text.split(" ");
+    const lines = [];
+    let line = "";
+
+    words.forEach(word => {
+
+        const test = line ? line + " " + word : word;
+
+        if (ctx.measureText(test).width > maxWidth && line) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = test;
+        }
+    });
+
+    if (line) {
+        lines.push(line);
+    }
+
+    return lines;
+}
+
+function downloadHitsPng() {
+
+    if (!lastHitsData) {
+        return;
+    }
+
+    const data = lastHitsData;
+
+    const green = "#00FF87";
+    const dark = "#061A14";
+    const rowBg = "#0D3024";
+    const white = "#FFFFFF";
+    const grey = "#9AB3A8";
+    const red = "#FF4D6D";
+    const font = "Arial, Helvetica, sans-serif";
+
+    const W = 1000;
+    const S = 2;                     // 2x for a sharp image on phones
+    const pad = 40;
+
+    const nameX = pad + 55;
+    const hitsRight = W - pad - 170;
+    const ptsRight = W - pad;
+    const textW = hitsRight - 80 - nameX;
+
+    // Work out how tall each row needs to be
+    const measure = document.createElement("canvas").getContext("2d");
+    measure.font = `14px ${font}`;
+
+    const rows = data.managers.map(m => {
+
+        const weeks = m.hits.length
+            ? m.hits
+                .map(h => `GW${h.gw}\u00A0(-${h.points})`)
+                .join(", ")
+            : "No hits 🎉";
+
+        const lines = wrapText(measure, weeks, textW);
+
+        return {
+            m: m,
+            lines: lines,
+            h: 68 + lines.length * 18 + 12
+        };
+    });
+
+    const headerH = 120;
+    const summaryH = 100;
+    const tableHeadH = 40;
+    const footerH = 70;
+
+    const rowsH = rows.reduce((sum, r) => sum + r.h + 8, 0);
+
+    const H = headerH + summaryH + tableHeadH + rowsH + footerH;
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = W * S;
+    canvas.height = H * S;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.scale(S, S);
+
+    // Background
+    ctx.fillStyle = dark;
+    ctx.fillRect(0, 0, W, H);
+
+    // Header
+    ctx.fillStyle = green;
+    ctx.fillRect(0, 0, W, headerH);
+
+    ctx.fillStyle = dark;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+
+    ctx.font = `bold 44px ${font}`;
+    ctx.fillText("🤡 FPL HITS TRACKER", pad, 62);
+
+    ctx.font = `16px ${font}`;
+    ctx.fillText(
+        "Points dropped on transfer hits this season",
+        pad + 4,
+        94
+    );
+
+    // Summary box
+    let y = headerH + 25;
+
+    ctx.fillStyle = rowBg;
+    ctx.beginPath();
+    ctx.roundRect(pad, y, W - pad * 2, 65, 12);
+    ctx.fill();
+
+    ctx.fillStyle = red;
+    ctx.font = `bold 30px ${font}`;
+    ctx.fillText(`-${data.total_points}`, pad + 20, y + 42);
+
+    const totalW = ctx.measureText(`-${data.total_points}`).width;
+
+    ctx.fillStyle = grey;
+    ctx.font = `16px ${font}`;
+    ctx.fillText(
+        `points lost  •  ${data.total_hits} extra transfers`,
+        pad + 20 + totalW + 15,
+        y + 40
+    );
+
+    y += 65 + 20;
+
+    // Table heading
+    ctx.fillStyle = grey;
+    ctx.font = `bold 13px ${font}`;
+
+    ctx.textAlign = "left";
+    ctx.fillText("#", pad + 10, y + 15);
+    ctx.fillText("MANAGER", nameX, y + 15);
+
+    ctx.textAlign = "right";
+    ctx.fillText("HITS", hitsRight, y + 15);
+    ctx.fillText("POINTS LOST", ptsRight - 15, y + 15);
+
+    y += tableHeadH - 10;
+
+    // Rows
+    rows.forEach((r, index) => {
+
+        const m = r.m;
+
+        ctx.fillStyle = rowBg;
+        ctx.beginPath();
+        ctx.roundRect(pad, y, W - pad * 2, r.h, 12);
+        ctx.fill();
+
+        // Position
+        ctx.fillStyle = white;
+        ctx.font = `bold 22px ${font}`;
+        ctx.textAlign = "left";
+        ctx.fillText(String(index + 1), pad + 15, y + 34);
+
+        // Manager (+ clown if they've taken a hit)
+        ctx.font = `bold 20px ${font}`;
+        ctx.fillText(m.manager, nameX, y + 30);
+
+        if (m.total_hits > 0) {
+
+            const nameW = ctx.measureText(m.manager).width;
+
+            ctx.font = `20px ${font}`;
+            ctx.fillText("🤡", nameX + nameW + 8, y + 30);
+        }
+
+        // Team
+        ctx.fillStyle = grey;
+        ctx.font = `14px ${font}`;
+        ctx.fillText(m.team, nameX, y + 50);
+
+        // Gameweeks of hits
+        ctx.fillStyle = m.hits.length ? "#A9C5B9" : green;
+        ctx.font = `14px ${font}`;
+
+        r.lines.forEach((line, i) => {
+            ctx.fillText(line, nameX, y + 72 + i * 18);
+        });
+
+        // Number of hits
+        ctx.textAlign = "right";
+        ctx.fillStyle = white;
+        ctx.font = `bold 22px ${font}`;
+        ctx.fillText(String(m.total_hits), hitsRight, y + 34);
+
+        // Points lost
+        ctx.fillStyle = m.total_points > 0 ? red : grey;
+        ctx.font = `bold 26px ${font}`;
+        ctx.fillText(
+            m.total_points > 0 ? `-${m.total_points}` : "0",
+            ptsRight - 15,
+            y + 36
+        );
+
+        y += r.h + 8;
+    });
+
+    // Footer
+    ctx.textAlign = "left";
+    ctx.fillStyle = grey;
+    ctx.font = `14px ${font}`;
+    ctx.fillText(
+        `Updated: ${data.updated || "never"}`,
+        pad,
+        H - 38
+    );
+
+    ctx.fillStyle = green;
+    ctx.fillText(
+        "Fantasy Premier League Mini League",
+        pad,
+        H - 16
+    );
+
+    // Download
+    canvas.toBlob(blob => {
+
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = "FPL_Hits_Tracker.png";
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(url);
+
+    }, "image/png");
 }
 
 
