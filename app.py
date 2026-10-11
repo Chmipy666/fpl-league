@@ -521,7 +521,8 @@ def get_league_rows(standings, gameweek, display_gw=None):
     begin = basis_start(first)
 
     live_gw = display_gw or gameweek
-    end = max(min(last, live_gw), begin - 1)
+    end = max(min(last, gameweek), begin - 1)
+    in_progress = bool(display_gw) and display_gw > gameweek
 
     live_points = get_live_points(live_gw) if display_gw else {}
 
@@ -570,7 +571,9 @@ def get_league_rows(standings, gameweek, display_gw=None):
                 None
             )
 
-            if hist_row:
+            use_history = bool(hist_row) and not in_progress
+
+            if use_history:
                 gross = hist_row.get("points", 0)
                 gw_hit = hist_row.get("event_transfers_cost", 0)
             else:
@@ -601,7 +604,7 @@ def get_league_rows(standings, gameweek, display_gw=None):
             # Green number = gameweek points AFTER the transfer hit
             gw_points = gross - gw_hit
 
-            if not hist_row and first <= live_gw <= last:
+            if not use_history and first <= live_gw <= last:
                 extra = gw_points
 
         rows.append({
@@ -2771,9 +2774,19 @@ button:hover {
 
     <div class="chart-card">
 
-        <h2>
-            🧢 Captains This Gameweek
-        </h2>
+        <div style="display: flex; justify-content: space-between;
+                    align-items: center; flex-wrap: wrap; gap: 10px;
+                    margin-bottom: 15px;">
+
+            <h2 style="margin: 0;">
+                🧢 Captains This Gameweek
+            </h2>
+
+            <button onclick="downloadCaptainsPng()">
+                📸 SAVE CAPTAINS AS PNG
+            </button>
+
+        </div>
 
         <div id="captains" class="captains-grid"></div>
 
@@ -3626,6 +3639,184 @@ function downloadHitsPng() {
 
         link.href = url;
         link.download = "FPL_Hits_Tracker.png";
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(url);
+
+    }, "image/png");
+}
+
+
+/* ==========================================================
+   CAPTAINS - SAVE AS PNG
+   ========================================================== */
+
+function fitText(ctx, text, maxW) {
+
+    if (ctx.measureText(text).width <= maxW) {
+        return text;
+    }
+
+    while (text.length > 1 && ctx.measureText(text + "…").width > maxW) {
+        text = text.slice(0, -1);
+    }
+
+    return text + "…";
+}
+
+function downloadCaptainsPng() {
+
+    if (!currentData) {
+
+        alert("Please update the FPL data first.");
+
+        return;
+    }
+
+    const data = currentData;
+
+    const green = "#00FF87";
+    const dark = "#061A14";
+    const cardBg = "#0A241B";
+    const rowBg = "#0D3024";
+    const white = "#FFFFFF";
+    const grey = "#9AB3A8";
+    const font = "Arial, Helvetica, sans-serif";
+
+    const W = 1400;
+    const S = 2;                     // 2x for a sharp image on phones
+    const pad = 40;
+    const gap = 25;
+    const colW = (W - pad * 2 - gap) / 2;
+
+    const cardH = 118;
+    const cardGap = 12;
+    const headerH = 130;
+    const colTitleH = 50;
+    const footerH = 80;
+
+    const left = data.players.filter(p => p.league === "championship");
+    const right = data.players.filter(p => p.league === "challenger");
+
+    const rowsN = Math.max(left.length, right.length);
+
+    const H = headerH + colTitleH + rowsN * (cardH + cardGap) + footerH;
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = W * S;
+    canvas.height = H * S;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.scale(S, S);
+
+    ctx.textBaseline = "alphabetic";
+
+    // Background
+    ctx.fillStyle = dark;
+    ctx.fillRect(0, 0, W, H);
+
+    // Header
+    ctx.fillStyle = green;
+    ctx.fillRect(0, 0, W, headerH);
+
+    ctx.fillStyle = dark;
+    ctx.textAlign = "left";
+
+    ctx.font = `bold 48px ${font}`;
+    ctx.fillText("🧢 FPL CAPTAINS", pad, 66);
+
+    ctx.font = `18px ${font}`;
+    ctx.fillText(
+        `${data.league_name}  •  GAMEWEEK ${data.gameweek}`
+        + (data.live ? "  •  LIVE" : ""),
+        pad + 4,
+        102
+    );
+
+    function drawColumn(x, title, list) {
+
+        // Column title
+        ctx.textAlign = "left";
+        ctx.fillStyle = grey;
+        ctx.font = `bold 16px ${font}`;
+        ctx.fillText(title, x + 5, headerH + 32);
+
+        list.forEach((p, i) => {
+
+            const y = headerH + colTitleH + i * (cardH + cardGap);
+
+            ctx.fillStyle = rowBg;
+            ctx.beginPath();
+            ctx.roundRect(x, y, colW, cardH, 14);
+            ctx.fill();
+
+            const textW = colW - 200;
+
+            // Manager
+            ctx.textAlign = "left";
+            ctx.fillStyle = white;
+            ctx.font = `bold 22px ${font}`;
+            ctx.fillText(
+                fitText(ctx, `${p.rank}. ${p.manager}`, textW),
+                x + 22,
+                y + 36
+            );
+
+            // Team
+            ctx.fillStyle = grey;
+            ctx.font = `15px ${font}`;
+            ctx.fillText(fitText(ctx, p.team, textW), x + 22, y + 60);
+
+            // Captain
+            ctx.fillStyle = green;
+            ctx.font = `bold 20px ${font}`;
+            ctx.fillText(
+                fitText(ctx, `🧢 ${p.captain}`, textW),
+                x + 22,
+                y + 90
+            );
+
+            // Captain points
+            ctx.textAlign = "right";
+            ctx.fillStyle = white;
+            ctx.font = `bold 38px ${font}`;
+            ctx.fillText(`${p.captain_points}`, x + colW - 22, y + 56);
+
+            ctx.fillStyle = grey;
+            ctx.font = `14px ${font}`;
+            ctx.fillText("captain pts", x + colW - 22, y + 78);
+
+            ctx.fillStyle = green;
+            ctx.fillText(`Team GW: +${p.gw_points}`, x + colW - 22, y + 100);
+        });
+    }
+
+    drawColumn(pad, "CHAMPIONSHIP LEAGUE", left);
+    drawColumn(pad + colW + gap, "CHALLENGER LEAGUE", right);
+
+    // Footer
+    ctx.textAlign = "left";
+    ctx.fillStyle = grey;
+    ctx.font = `14px ${font}`;
+    ctx.fillText(`Updated: ${data.updated}`, pad, H - 42);
+
+    ctx.fillStyle = green;
+    ctx.fillText("Fantasy Premier League Mini League", pad, H - 18);
+
+    // Download
+    canvas.toBlob(blob => {
+
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = `FPL_Captains_GW${data.gameweek}.png`;
 
         document.body.appendChild(link);
         link.click();
