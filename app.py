@@ -842,6 +842,38 @@ def build_snapshot():
         if previous_rank is not None:
             movement = previous_rank - rank
 
+        # ----------------------------------------------------
+        # Points left on the bench (finished gameweeks only)
+        # ----------------------------------------------------
+
+        history_rows = row["history"].get("current", [])
+
+        # Bench Boost weeks: bench points counted, so nothing was wasted
+        bboost_weeks = {
+            c.get("event")
+            for c in row["history"].get("chips", [])
+            if c.get("name") == "bboost"
+        }
+
+        bench_by_gw = []
+
+        for gw_row in history_rows:
+
+            event = gw_row.get("event", 0)
+
+            if event <= finished_gw and event not in bboost_weeks:
+                bench_by_gw.append({
+                    "gw": event,
+                    "points": gw_row.get("points_on_bench", 0) or 0
+                })
+
+        bench_total = sum(b["points"] for b in bench_by_gw)
+
+        bench_last = next(
+            (b["points"] for b in bench_by_gw if b["gw"] == finished_gw),
+            0
+        )
+
         players.append({
             "entry": entry_id,
             "rank": rank,
@@ -858,7 +890,10 @@ def build_snapshot():
             "captain": captain_name,
             "captain_points": captain_points,
             "previous_rank": previous_rank,
-            "movement": movement
+            "movement": movement,
+            "bench_total": bench_total,
+            "bench_last": bench_last,
+            "bench_by_gw": bench_by_gw
         })
 
     players.sort(
@@ -871,6 +906,7 @@ def build_snapshot():
     snapshot = {
         "gameweek": gameweek,
         "live": gameweek > finished_gw,
+        "bench_gw": finished_gw,
         "league_name": league_name,
         "updated": datetime.now().strftime(
             "%d %b %Y %H:%M"
@@ -2792,6 +2828,19 @@ button:hover {
 
     </div>
 
+
+    <div class="chart-card">
+
+        <h2>
+            🪑 Points Left on the Bench
+        </h2>
+
+        <div id="benchNote" class="chip-note"></div>
+
+        <div id="bench"></div>
+
+    </div>
+
 </div>
 
 
@@ -2970,6 +3019,10 @@ function renderDashboard(data) {
 
     renderCaptains(
         data.players
+    );
+
+    renderBench(
+        data
     );
 }
 
@@ -3255,6 +3308,66 @@ function renderCaptains(players) {
 
         container.appendChild(card);
     });
+}
+
+
+/* ==========================================================
+   POINTS LEFT ON THE BENCH (season total)
+   ========================================================== */
+
+function renderBench(data) {
+
+    const players = [...data.players].sort(
+        (a, b) =>
+            b.bench_total - a.bench_total
+            || a.manager.localeCompare(b.manager)
+    );
+
+    const lastGw = data.bench_gw;
+
+    document.getElementById("benchNote").innerText =
+        lastGw > 0
+            ? `Counted once each gameweek has finished (up to GW${lastGw}). `
+              + `Bench Boost weeks aren't counted.`
+            : "No finished gameweeks yet.";
+
+    let rows = "";
+
+    players.forEach((p, index) => {
+
+        const weeks = (p.bench_by_gw || [])
+            .filter(b => b.points > 0)
+            .map(b => `GW${b.gw} (${b.points})`)
+            .join(", ") || "Nothing wasted 🎉";
+
+        rows += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>
+                    <strong>${escapeHtml(p.manager)}</strong>
+                    <div class="hits-weeks">${escapeHtml(p.team)}</div>
+                    <div class="hits-weeks">${weeks}</div>
+                </td>
+                <td>${p.bench_last}</td>
+                <td class="hits-points">${p.bench_total}</td>
+            </tr>
+        `;
+    });
+
+    document.getElementById("bench").innerHTML = `
+        <table class="hits-table">
+
+            <tr>
+                <th>#</th>
+                <th>MANAGER</th>
+                <th>${lastGw > 0 ? "GW" + lastGw : "LAST GW"}</th>
+                <th>SEASON TOTAL</th>
+            </tr>
+
+            ${rows}
+
+        </table>
+    `;
 }
 
 

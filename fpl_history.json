@@ -487,8 +487,9 @@
   {
     "gameweek": 6,
     "live": true,
+    "bench_gw": 5,
     "league_name": "Curry Club Round 5 Phals alive",
-    "updated": "11 Oct 2026 17:33",
+    "updated": "11 Oct 2026 17:41",
     "chip_half": 1,
     "chip_split_gw": 19,
     "period": {
@@ -543,7 +544,31 @@
         "captain": "Saka",
         "captain_points": 4,
         "previous_rank": 1,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 52,
+        "bench_last": 19,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 7
+          },
+          {
+            "gw": 2,
+            "points": 16
+          },
+          {
+            "gw": 3,
+            "points": 8
+          },
+          {
+            "gw": 4,
+            "points": 2
+          },
+          {
+            "gw": 5,
+            "points": 19
+          }
+        ]
       },
       {
         "entry": 390134,
@@ -590,7 +615,27 @@
         "captain": "Haaland",
         "captain_points": 2,
         "previous_rank": 2,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 38,
+        "bench_last": 8,
+        "bench_by_gw": [
+          {
+            "gw": 2,
+            "points": 6
+          },
+          {
+            "gw": 3,
+            "points": 14
+          },
+          {
+            "gw": 4,
+            "points": 10
+          },
+          {
+            "gw": 5,
+            "points": 8
+          }
+        ]
       },
       {
         "entry": 7147625,
@@ -637,7 +682,31 @@
         "captain": "Haaland",
         "captain_points": 2,
         "previous_rank": 3,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 74,
+        "bench_last": 12,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 16
+          },
+          {
+            "gw": 2,
+            "points": 15
+          },
+          {
+            "gw": 3,
+            "points": 22
+          },
+          {
+            "gw": 4,
+            "points": 9
+          },
+          {
+            "gw": 5,
+            "points": 12
+          }
+        ]
       },
       {
         "entry": 518209,
@@ -684,7 +753,31 @@
         "captain": "B.Fernandes",
         "captain_points": 2,
         "previous_rank": 4,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 21,
+        "bench_last": 0,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 5
+          },
+          {
+            "gw": 2,
+            "points": 2
+          },
+          {
+            "gw": 3,
+            "points": 12
+          },
+          {
+            "gw": 4,
+            "points": 2
+          },
+          {
+            "gw": 5,
+            "points": 0
+          }
+        ]
       },
       {
         "entry": 756483,
@@ -731,7 +824,31 @@
         "captain": "Haaland",
         "captain_points": 2,
         "previous_rank": 5,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 49,
+        "bench_last": 9,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 5
+          },
+          {
+            "gw": 2,
+            "points": 14
+          },
+          {
+            "gw": 3,
+            "points": 5
+          },
+          {
+            "gw": 4,
+            "points": 16
+          },
+          {
+            "gw": 5,
+            "points": 9
+          }
+        ]
       },
       {
         "entry": 3581128,
@@ -778,7 +895,31 @@
         "captain": "Rogers",
         "captain_points": 18,
         "previous_rank": 1,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 39,
+        "bench_last": 4,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 5
+          },
+          {
+            "gw": 2,
+            "points": 15
+          },
+          {
+            "gw": 3,
+            "points": 12
+          },
+          {
+            "gw": 4,
+            "points": 3
+          },
+          {
+            "gw": 5,
+            "points": 4
+          }
+        ]
       },
       {
         "entry": 7009706,
@@ -825,7 +966,31 @@
         "captain": "Haaland",
         "captain_points": 2,
         "previous_rank": 2,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 30,
+        "bench_last": 3,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 1
+          },
+          {
+            "gw": 2,
+            "points": 10
+          },
+          {
+            "gw": 3,
+            "points": 13
+          },
+          {
+            "gw": 4,
+            "points": 3
+          },
+          {
+            "gw": 5,
+            "points": 3
+          }
+        ]
       },
       {
         "entry": 2289310,
@@ -872,7 +1037,27 @@
         "captain": "Haaland",
         "captain_points": 2,
         "previous_rank": 3,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 46,
+        "bench_last": 14,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 8
+          },
+          {
+            "gw": 3,
+            "points": 15
+          },
+          {
+            "gw": 4,
+            "points": 9
+          },
+          {
+            "gw": 5,
+            "points": 14
+          }
+        ]
       },
       {
         "entry": 1281784,
@@ -919,7 +1104,31 @@
         "captain": "\u00d8degaard",
         "captain_points": 2,
         "previous_rank": 4,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 38,
+        "bench_last": 2,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 7
+          },
+          {
+            "gw": 2,
+            "points": 2
+          },
+          {
+            "gw": 3,
+            "points": 7
+          },
+          {
+            "gw": 4,
+            "points": 20
+          },
+          {
+            "gw": 5,
+            "points": 2
+          }
+        ]
       },
       {
         "entry": 5021862,
@@ -966,7 +1175,31 @@
         "captain": "\u00d8degaard",
         "captain_points": 2,
         "previous_rank": 5,
-        "movement": 0
+        "movement": 0,
+        "bench_total": 42,
+        "bench_last": 4,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 5
+          },
+          {
+            "gw": 2,
+            "points": 12
+          },
+          {
+            "gw": 3,
+            "points": 7
+          },
+          {
+            "gw": 4,
+            "points": 14
+          },
+          {
+            "gw": 5,
+            "points": 4
+          }
+        ]
       }
     ]
   }
