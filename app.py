@@ -56,6 +56,14 @@ CURRIES_STACK = True
 # Every transfer hit (-4, -8 ...) taken this season is saved here.
 HITS_FILE = "fpl_hits.json"
 
+# Points left on the bench, worked out once per finished gameweek and saved
+# here so old gameweeks never need to be looked up again.
+BENCH_FILE = "fpl_bench.json"
+
+# Triple Captain results (which player was captained and what they scored),
+# saved once per finished gameweek.
+CHIPS_FILE = "fpl_chips.json"
+
 # Password for the HITS TRACKER button.
 # (Or set an environment variable called FPL_HITS_PASSWORD instead.)
 HITS_PASSWORD = os.environ.get("FPL_HITS_PASSWORD", "Meg8tron123!!!")
@@ -735,6 +743,158 @@ def get_chip_status(history, chip_half):
     ]
 
 
+def load_bench_cache():
+    """Load saved bench points ({entry: {gameweek: points}})."""
+
+    if not os.path.exists(BENCH_FILE):
+        return {"entries": {}}
+
+    try:
+        with open(BENCH_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        data.setdefault("entries", {})
+        return data
+
+    except Exception:
+        return {"entries": {}}
+
+
+def save_bench_cache(cache):
+    """Save bench points so finished gameweeks are only fetched once."""
+
+    with open(BENCH_FILE, "w", encoding="utf-8") as file:
+        json.dump(cache, file, indent=2)
+
+
+def compute_bench_points(entry_id, gameweek, live_points):
+    """Points left on the bench in a finished gameweek.
+
+    Bench players (positions 12-15) who were automatically subbed on
+    are NOT counted, because their points went into the score.
+    Returns None if FPL didn't answer (so it can be tried again).
+    """
+
+    picks_data = get_manager_picks(entry_id, gameweek)
+
+    picks = picks_data.get("picks", [])
+
+    if not picks:
+        return None
+
+    subbed_in = {
+        sub.get("element_in")
+        for sub in picks_data.get("automatic_subs", [])
+    }
+
+    return sum(
+        live_points.get(p["element"], 0)
+        for p in picks
+        if p.get("position", 0) >= 12 and p["element"] not in subbed_in
+    )
+
+
+def bench_points_for(entry_id, gameweek, cache, live_cache):
+    """Saved bench points for one manager + gameweek (fetched if new)."""
+
+    entry_cache = cache.setdefault("entries", {}).setdefault(
+        str(entry_id), {}
+    )
+
+    if str(gameweek) in entry_cache:
+        return entry_cache[str(gameweek)]
+
+    if gameweek not in live_cache:
+        live_cache[gameweek] = get_live_points(gameweek)
+
+    if not live_cache[gameweek]:
+        return None
+
+    points = compute_bench_points(
+        entry_id, gameweek, live_cache[gameweek]
+    )
+
+    if points is not None:
+        entry_cache[str(gameweek)] = points
+
+    return points
+
+
+def load_chip_cache():
+    """Load saved Triple Captain results."""
+
+    if not os.path.exists(CHIPS_FILE):
+        return {"tc": {}}
+
+    try:
+        with open(CHIPS_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        data.setdefault("tc", {})
+        return data
+
+    except Exception:
+        return {"tc": {}}
+
+
+def save_chip_cache(cache):
+    """Save Triple Captain results."""
+
+    with open(CHIPS_FILE, "w", encoding="utf-8") as file:
+        json.dump(cache, file, indent=2)
+
+
+def find_tc_pick(picks):
+    """The pick that was triple captained (multiplier 3)."""
+
+    for pick in picks:
+        if pick.get("multiplier") == 3:
+            return pick
+
+    for pick in picks:
+        if pick.get("is_captain"):
+            return pick
+
+    return None
+
+
+def tc_result_for(entry_id, gameweek, cache, live_cache, player_names):
+    """Who was triple captained in a finished gameweek and their points.
+
+    The points include the x3 multiplier. Returns None if FPL didn't
+    answer (so it is tried again next time).
+    """
+
+    store = cache.setdefault("tc", {}).setdefault(str(entry_id), {})
+
+    if str(gameweek) in store:
+        return store[str(gameweek)]
+
+    if gameweek not in live_cache:
+        live_cache[gameweek] = get_live_points(gameweek)
+
+    live = live_cache[gameweek]
+
+    if not live:
+        return None
+
+    picks = get_manager_picks(entry_id, gameweek).get("picks", [])
+
+    pick = find_tc_pick(picks)
+
+    if not pick:
+        return None
+
+    result = {
+        "player": player_names.get(pick["element"], "Unknown"),
+        "points": live.get(pick["element"], 0) * pick.get("multiplier", 3)
+    }
+
+    store[str(gameweek)] = result
+
+    return result
+
+
 def build_snapshot():
     """Build a complete current league snapshot."""
 
@@ -775,6 +935,10 @@ def build_snapshot():
             previous_players[player["entry"]] = player
 
     players = []
+
+    bench_cache = load_bench_cache()
+    chip_cache = load_chip_cache()
+    bench_live_cache = {}
 
     for row in league_rows:
 
@@ -862,9 +1026,16 @@ def build_snapshot():
             event = gw_row.get("event", 0)
 
             if event <= finished_gw and event not in bboost_weeks:
+                computed = bench_points_for(
+                    entry_id, event, bench_cache, bench_live_cache
+                )
+
                 bench_by_gw.append({
                     "gw": event,
-                    "points": gw_row.get("points_on_bench", 0) or 0
+                    "points": (
+                        computed if computed is not None
+                        else (gw_row.get("points_on_bench", 0) or 0)
+                    )
                 })
 
         bench_total = sum(b["points"] for b in bench_by_gw)
@@ -873,6 +1044,81 @@ def build_snapshot():
             (b["points"] for b in bench_by_gw if b["gw"] == finished_gw),
             0
         )
+
+        # ----------------------------------------------------
+        # Chip scores
+        #   Wildcard / Free Hit / Bench Boost = whole team's points
+        #   Triple Captain = only the captained player's points
+        # ----------------------------------------------------
+
+        chip_results = {
+            "wildcard": [],
+            "freehit": [],
+            "bboost": [],
+            "3xc": []
+        }
+
+        for chip in row["history"].get("chips", []):
+
+            chip_name = chip.get("name")
+            chip_event = chip.get("event", 0)
+
+            if chip_name not in chip_results or chip_event > gameweek:
+                continue
+
+            live_week = chip_event > finished_gw
+
+            if chip_name == "3xc":
+
+                result = None
+
+                if live_week:
+                    pick = find_tc_pick(row["picks"].get("picks", []))
+
+                    if pick:
+                        result = {
+                            "player": player_names.get(
+                                pick["element"], "Unknown"
+                            ),
+                            "points": (
+                                live_points.get(pick["element"], 0)
+                                * pick.get("multiplier", 3)
+                            )
+                        }
+                else:
+                    result = tc_result_for(
+                        entry_id, chip_event, chip_cache,
+                        bench_live_cache, player_names
+                    )
+
+                if result:
+                    chip_results[chip_name].append(
+                        {"gw": chip_event, "live": live_week, **result}
+                    )
+
+            else:
+
+                if live_week:
+                    chip_points = row["gw_points"] + row["gw_hit"]
+                else:
+                    chip_hist = next(
+                        (g for g in row["history"].get("current", [])
+                         if g.get("event") == chip_event),
+                        None
+                    )
+                    chip_points = (
+                        chip_hist.get("points", 0) if chip_hist else None
+                    )
+
+                if chip_points is not None:
+                    chip_results[chip_name].append({
+                        "gw": chip_event,
+                        "live": live_week,
+                        "points": chip_points
+                    })
+
+        for results in chip_results.values():
+            results.sort(key=lambda r: r["gw"])
 
         players.append({
             "entry": entry_id,
@@ -893,8 +1139,15 @@ def build_snapshot():
             "movement": movement,
             "bench_total": bench_total,
             "bench_last": bench_last,
-            "bench_by_gw": bench_by_gw
+            "bench_by_gw": bench_by_gw,
+            "chip_results": chip_results
         })
+
+    try:
+        save_bench_cache(bench_cache)
+        save_chip_cache(chip_cache)
+    except Exception:
+        pass
 
     players.sort(
         key=lambda x: (
@@ -2841,6 +3094,23 @@ button:hover {
 
     </div>
 
+
+    <div class="chart-card">
+
+        <h2>
+            🃏 Chip Scores
+        </h2>
+
+        <div class="chip-note">
+            Wildcard, Free Hit and Bench Boost show the whole team's points
+            for that gameweek. Triple Captain shows only the captained
+            player's points (including the x3).
+        </div>
+
+        <div id="chipScores" style="overflow-x: auto;"></div>
+
+    </div>
+
 </div>
 
 
@@ -3023,6 +3293,10 @@ function renderDashboard(data) {
 
     renderBench(
         data
+    );
+
+    renderChipScores(
+        data.players
     );
 }
 
@@ -3362,6 +3636,83 @@ function renderBench(data) {
                 <th>MANAGER</th>
                 <th>${lastGw > 0 ? "GW" + lastGw : "LAST GW"}</th>
                 <th>SEASON TOTAL</th>
+            </tr>
+
+            ${rows}
+
+        </table>
+    `;
+}
+
+
+/* ==========================================================
+   CHIP SCORES
+   ========================================================== */
+
+function renderChipScores(players) {
+
+    const columns = [
+        { key: "wildcard", label: "WILDCARD" },
+        { key: "freehit", label: "FREE HIT" },
+        { key: "bboost", label: "BENCH BOOST" },
+        { key: "3xc", label: "TRIPLE CAPTAIN" }
+    ];
+
+    let rows = "";
+
+    players.forEach(p => {
+
+        let cells = "";
+
+        columns.forEach(col => {
+
+            const results = (p.chip_results || {})[col.key] || [];
+
+            if (!results.length) {
+
+                cells += `<td style="color: #5d776c;">—</td>`;
+
+                return;
+            }
+
+            const lines = results.map(r => {
+
+                const live = r.live ? " (live)" : "";
+
+                if (col.key === "3xc") {
+
+                    return `<div class="hits-weeks">GW${r.gw}${live}</div>`
+                         + `<div><strong>${escapeHtml(r.player)}</strong> `
+                         + `<span style="color: #00ff87; font-weight: 900;">`
+                         + `${r.points}</span></div>`;
+                }
+
+                return `<div class="hits-weeks">GW${r.gw}${live}</div>`
+                     + `<div style="color: #00ff87; font-weight: 900;">`
+                     + `${r.points}</div>`;
+
+            }).join("");
+
+            cells += `<td>${lines}</td>`;
+        });
+
+        rows += `
+            <tr>
+                <td>
+                    <strong>${escapeHtml(p.manager)}</strong>
+                    <div class="hits-weeks">${escapeHtml(p.team)}</div>
+                </td>
+                ${cells}
+            </tr>
+        `;
+    });
+
+    document.getElementById("chipScores").innerHTML = `
+        <table class="hits-table">
+
+            <tr>
+                <th>MANAGER</th>
+                ${columns.map(c => `<th>${c.label}</th>`).join("")}
             </tr>
 
             ${rows}
