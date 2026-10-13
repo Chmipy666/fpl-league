@@ -4,6 +4,7 @@ import json
 import os
 import hmac
 import time
+import math
 from datetime import datetime
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
@@ -1333,6 +1334,46 @@ def get_clown_icon(size):
     return icon
 
 
+_STAR_ICONS = {}
+
+
+def get_star_icon(size):
+    """A small gold star picture for the PNGs."""
+
+    if size in _STAR_ICONS:
+        return _STAR_ICONS[size]
+
+    icon = render_emoji_icon("⭐", size)
+
+    if icon is None:
+
+        # Fallback: draw a simple gold star
+        s = size * 4
+
+        canvas = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+        d = ImageDraw.Draw(canvas)
+
+        centre = s / 2
+        points = []
+
+        for i in range(10):
+            radius = s * 0.48 if i % 2 == 0 else s * 0.20
+            angle = -math.pi / 2 + i * math.pi / 5
+
+            points.append((
+                centre + radius * math.cos(angle),
+                centre + radius * math.sin(angle)
+            ))
+
+        d.polygon(points, fill="#FFD700", outline="#B8860B")
+
+        icon = canvas.resize((size, size), Image.LANCZOS)
+
+    _STAR_ICONS[size] = icon
+
+    return icon
+
+
 def create_whatsapp_graphic(snapshot):
     """Create a WhatsApp-friendly PNG of the league tables."""
 
@@ -1844,6 +1885,20 @@ def build_transfers_data(gameweek):
                 "in_points": live_points.get(in_id, 0)
             })
 
+        # Did the players brought in outscore the players taken out,
+        # once the points hit has been paid? (e.g. +15 - 12 = +3 = star)
+        in_total = sum(t["in_points"] for t in transfer_rows)
+        out_total = sum(t["out_points"] for t in transfer_rows)
+
+        net = in_total - out_total - hit_cost
+
+        if not transfer_rows or net == 0:
+            verdict = None
+        elif net > 0:
+            verdict = "star"
+        else:
+            verdict = "clown"
+
         managers.append({
             "rank": row["league_rank"],
             "league": row["league"],
@@ -1852,7 +1907,11 @@ def build_transfers_data(gameweek):
             "team": row.get("entry_name", "Unknown Team"),
             "hit_cost": hit_cost,
             "chips": chips,
-            "transfers": transfer_rows
+            "transfers": transfer_rows,
+            "in_total": in_total,
+            "out_total": out_total,
+            "net": net,
+            "verdict": verdict
         })
 
     managers.sort(
@@ -1905,6 +1964,7 @@ def create_transfers_graphic(data):
     white = "#FFFFFF"
     grey = "#9AB3A8"
     red = "#FF4D6D"
+    gold = "#FFD700"
 
     title_font = load_font(True, 52)
     name_font = load_font(True, 24)
@@ -1930,7 +1990,7 @@ def create_transfers_graphic(data):
         return sum(block_height(m) for m in column) + block_gap * (len(column) - 1)
 
     content_h = max(column_height(left), column_height(right))
-    height = 145 + 30 + content_h + 110
+    height = 145 + 30 + content_h + 140
 
     image = Image.new("RGB", (width, height), dark)
     draw = ImageDraw.Draw(image)
@@ -1996,6 +2056,30 @@ def create_transfers_graphic(data):
                         font=small_font
                     )
 
+            # Gold star if the players in outscored the players out,
+            # clown if they didn't
+            verdict = m.get("verdict")
+
+            if verdict:
+                icon_x = int(
+                    x + 25
+                    + draw.textlength(name_text, font=name_font)
+                    + 8
+                )
+
+                if curries:
+                    icon_x += 34
+
+                    if curries > 1:
+                        icon_x += 32
+
+                if verdict == "star":
+                    icon = get_star_icon(28)
+                else:
+                    icon = get_clown_icon(28)
+
+                image.paste(icon, (icon_x, y + 14), icon)
+
             draw.text(
                 (x + 25, y + 48),
                 m["team"][:34],
@@ -2003,8 +2087,36 @@ def create_transfers_graphic(data):
                 font=small_font
             )
 
-            # Hit cost / chip (top right)
+            # In vs out points / chip / hit cost (top right)
             tag_y = y + 18
+
+            if m["transfers"]:
+                diff = m["net"]
+
+                if m["hit_cost"]:
+                    summary = (
+                        f"IN {m['in_total']} • OUT {m['out_total']} "
+                        f"• HIT -{m['hit_cost']} ({diff:+d})"
+                    )
+                else:
+                    summary = (
+                        f"IN {m['in_total']} • OUT {m['out_total']} "
+                        f"({diff:+d})"
+                    )
+
+                if verdict == "star":
+                    verdict_colour = gold
+                elif verdict == "clown":
+                    verdict_colour = red
+                else:
+                    verdict_colour = grey
+
+                right_text(
+                    x + col_w - 25, tag_y,
+                    summary,
+                    verdict_colour, small_font
+                )
+                tag_y += 22
 
             if m["chips"]:
                 right_text(
@@ -2012,7 +2124,7 @@ def create_transfers_graphic(data):
                     " + ".join(m["chips"]),
                     green, small_font
                 )
-                tag_y += 26
+                tag_y += 22
 
             if m["hit_cost"]:
                 right_text(
@@ -2085,15 +2197,22 @@ def create_transfers_graphic(data):
 
     # Footer
     draw.text(
-        (50, height - 85),
+        (50, height - 115),
         f"Updated: {data['updated']}",
         fill=grey,
         font=small_font
     )
     draw.text(
-        (50, height - 50),
+        (50, height - 80),
         "Red = transferred out  •  Green = transferred in",
         fill=green,
+        font=small_font
+    )
+    draw.text(
+        (50, height - 45),
+        "Gold star = players in outscored players out after hits  •  "
+        "Clown = they didn't",
+        fill=gold,
         font=small_font
     )
 
