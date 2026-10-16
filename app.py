@@ -5,7 +5,7 @@ import os
 import hmac
 import time
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 
@@ -2802,6 +2802,49 @@ def api_hits():
     })
 
 
+@app.route("/api/deadline")
+def api_deadline():
+    """The next FPL deadline (for the live countdown)."""
+
+    try:
+        data = fpl_get("bootstrap-static/")
+
+        now = datetime.now(timezone.utc)
+
+        upcoming = []
+
+        for event in data.get("events", []):
+
+            deadline = event.get("deadline_time")
+
+            if not deadline:
+                continue
+
+            deadline_dt = datetime.fromisoformat(
+                deadline.replace("Z", "+00:00")
+            )
+
+            if deadline_dt > now:
+                upcoming.append((deadline_dt, event))
+
+        if not upcoming:
+            return jsonify({"deadline": None})
+
+        deadline_dt, event = min(upcoming, key=lambda item: item[0])
+
+        return jsonify({
+            "gameweek": event.get("id"),
+            "name": event.get("name"),
+            "deadline": deadline_dt.isoformat().replace("+00:00", "Z")
+        })
+
+    except Exception as error:
+
+        return jsonify({
+            "error": str(error)
+        }), 500
+
+
 @app.route("/api/gw1-team")
 def api_gw1_team():
     """Running total if everyone had kept their Gameweek 1 team."""
@@ -2984,6 +3027,60 @@ body {
 /* ==========================================================
    CONTROLS
    ========================================================== */
+
+.deadline-box {
+
+    display: inline-block;
+
+    margin-top: 14px;
+
+    padding: 10px 22px;
+
+    border-radius: 14px;
+
+    background: #061a14;
+
+    color: #00ff87;
+
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+
+    cursor: pointer;
+}
+
+.deadline-label {
+
+    font-size: 12px;
+
+    font-weight: 800;
+
+    letter-spacing: 1.5px;
+
+    color: #a9c5b9;
+}
+
+.deadline-time {
+
+    font-size: 30px;
+
+    font-weight: 900;
+
+    font-variant-numeric: tabular-nums;
+}
+
+.deadline-when {
+
+    font-size: 12px;
+
+    color: #a9c5b9;
+}
+
+.deadline-soon .deadline-time {
+    color: #ffd700;
+}
+
+.deadline-urgent .deadline-time {
+    color: #ff4d6d;
+}
 
 .controls {
 
@@ -3627,6 +3724,16 @@ button:hover {
     <p id="leagueName">
         Loading league...
     </p>
+
+    <div id="deadlineBox" class="deadline-box" style="display: none;" onclick="downloadDeadline()" title="Click to save as a PNG">
+
+        <div class="deadline-label" id="deadlineLabel"></div>
+
+        <div class="deadline-time" id="deadlineTime"></div>
+
+        <div class="deadline-when" id="deadlineWhen"></div>
+
+    </div>
 
 </div>
 
@@ -5110,10 +5217,203 @@ function escapeHtml(
 
 
 /* ==========================================================
+   LIVE DEADLINE COUNTDOWN
+   ========================================================== */
+
+let deadlineTarget = null;
+
+async function loadDeadline() {
+
+    try {
+
+        const response = await fetch("/api/deadline");
+        const data = await response.json();
+
+        if (data.error || !data.deadline) {
+            deadlineTarget = null;
+            document.getElementById("deadlineBox").style.display = "none";
+            return;
+        }
+
+        deadlineTarget = new Date(data.deadline);
+
+        document.getElementById("deadlineLabel").textContent =
+            "GAMEWEEK " + data.gameweek + " DEADLINE";
+
+        document.getElementById("deadlineWhen").textContent =
+            deadlineTarget.toLocaleString([], {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+
+        document.getElementById("deadlineBox").style.display =
+            "inline-block";
+
+        tickDeadline();
+
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function tickDeadline() {
+
+    if (!deadlineTarget) {
+        return;
+    }
+
+    const box = document.getElementById("deadlineBox");
+    const timeEl = document.getElementById("deadlineTime");
+
+    const remaining = deadlineTarget.getTime() - Date.now();
+
+    if (remaining <= 0) {
+
+        timeEl.textContent = "DEADLINE PASSED";
+        box.classList.remove("deadline-soon", "deadline-urgent");
+
+        // Pick up the next gameweek's deadline
+        deadlineTarget = null;
+        setTimeout(loadDeadline, 30000);
+        return;
+    }
+
+    const totalSeconds = Math.floor(remaining / 1000);
+
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const pad = (n) => String(n).padStart(2, "0");
+
+    timeEl.textContent =
+        (days > 0 ? days + "d " : "")
+        + pad(hours) + "h "
+        + pad(minutes) + "m "
+        + pad(seconds) + "s";
+
+    box.classList.toggle("deadline-urgent", remaining < 3600000);
+    box.classList.toggle(
+        "deadline-soon",
+        remaining >= 3600000 && remaining < 86400000
+    );
+}
+
+function downloadDeadline() {
+
+    const label = document.getElementById("deadlineLabel").textContent;
+    const time = document.getElementById("deadlineTime").textContent;
+    const when = document.getElementById("deadlineWhen").textContent;
+    const league = document.getElementById("leagueName").textContent.trim();
+    const box = document.getElementById("deadlineBox");
+
+    let timeColour = "#00ff87";
+
+    if (box.classList.contains("deadline-urgent")) {
+        timeColour = "#ff4d6d";
+    } else if (box.classList.contains("deadline-soon")) {
+        timeColour = "#ffd700";
+    }
+
+    const width = 900;
+    const height = 360;
+    const scale = 2;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+
+    const font = "'Segoe UI', Arial, sans-serif";
+
+    // Background
+    ctx.fillStyle = "#061a14";
+    ctx.fillRect(0, 0, width, height);
+
+    // Green header strip
+    const strip = ctx.createLinearGradient(0, 0, width, 0);
+    strip.addColorStop(0, "#00ff87");
+    strip.addColorStop(1, "#00c46a");
+    ctx.fillStyle = strip;
+    ctx.fillRect(0, 0, width, 70);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillStyle = "#061a14";
+    ctx.font = "900 34px " + font;
+    ctx.fillText("⚽ FPL LEAGUE", width / 2, 28);
+
+    ctx.font = "600 16px " + font;
+    ctx.fillText(league, width / 2, 54);
+
+    // Label
+    ctx.fillStyle = "#a9c5b9";
+    ctx.font = "800 22px " + font;
+    ctx.fillText(label, width / 2, 125);
+
+    // Countdown (shrinks to fit)
+    let size = 100;
+    ctx.fillStyle = timeColour;
+
+    do {
+        ctx.font = "900 " + size + "px " + font;
+        size -= 4;
+    } while (ctx.measureText(time).width > width - 80 && size > 24);
+
+    ctx.fillText(time, width / 2, 205);
+
+    // Deadline date/time
+    ctx.fillStyle = "#a9c5b9";
+    ctx.font = "600 22px " + font;
+    ctx.fillText(when, width / 2, 280);
+
+    ctx.font = "500 14px " + font;
+    ctx.fillText(
+        "Snapshot taken " + new Date().toLocaleString(),
+        width / 2,
+        330
+    );
+
+    canvas.toBlob(function (blob) {
+
+        const link = document.createElement("a");
+
+        link.href = URL.createObjectURL(blob);
+
+        link.download =
+            label.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+            + ".png";
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(function () {
+            URL.revokeObjectURL(link.href);
+        }, 1000);
+
+    }, "image/png");
+}
+
+setInterval(tickDeadline, 1000);
+
+// Deadlines can move, so check again every 10 minutes
+setInterval(loadDeadline, 600000);
+
+
+/* ==========================================================
    INITIAL LOAD
    ========================================================== */
 
 refreshData();
+loadDeadline();
 
 </script>
 
