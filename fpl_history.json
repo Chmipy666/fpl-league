@@ -489,7 +489,7 @@
     "live": false,
     "bench_gw": 6,
     "league_name": "Curry Club Round 5 Phals alive",
-    "updated": "13 Oct 2026 16:41",
+    "updated": "16 Oct 2026 21:50",
     "chip_half": 1,
     "chip_split_gw": 19,
     "period": {
@@ -1170,8 +1170,8 @@
         "gw_points": 44,
         "captain": "\u00d8degaard",
         "captain_points": 2,
-        "previous_rank": 5,
-        "movement": 2,
+        "previous_rank": 3,
+        "movement": 0,
         "bench_total": 48,
         "bench_last": 6,
         "bench_by_gw": [
@@ -1251,8 +1251,8 @@
         "gw_points": 44,
         "captain": "Haaland",
         "captain_points": 12,
-        "previous_rank": 3,
-        "movement": -1,
+        "previous_rank": 4,
+        "movement": 0,
         "bench_total": 54,
         "bench_last": 8,
         "bench_by_gw": [
@@ -1340,8 +1340,8 @@
         "gw_points": 40,
         "captain": "\u00d8degaard",
         "captain_points": 2,
-        "previous_rank": 4,
-        "movement": -1,
+        "previous_rank": 5,
+        "movement": 0,
         "bench_total": 56,
         "bench_last": 18,
         "bench_by_gw": [

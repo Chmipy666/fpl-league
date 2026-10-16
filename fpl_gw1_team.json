@@ -1,0 +1,1024 @@
+{
+  "entries": {
+    "3061020": {
+      "gws": {
+        "1": 44,
+        "2": 100,
+        "3": 55,
+        "4": 80,
+        "5": 90,
+        "6": 49
+      },
+      "squad": [
+        {
+          "element": 496,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 229,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 418,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 423,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 397,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 426,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 124,
+          "position": 7,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 15,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 411,
+          "position": 9,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 552,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 165,
+          "position": 11,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 497,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 112,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 338,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 175,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "390134": {
+      "gws": {
+        "1": 56,
+        "2": 107,
+        "3": 40,
+        "4": 59,
+        "5": 42,
+        "6": 72
+      },
+      "squad": [
+        {
+          "element": 109,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 8,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 418,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 329,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 426,
+          "position": 5,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 368,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 427,
+          "position": 7,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 557,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 411,
+          "position": 9,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 165,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 346,
+          "position": 11,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 496,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 87,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 127,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 304,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "7147625": {
+      "gws": {
+        "1": 48,
+        "2": 96,
+        "3": 58,
+        "4": 75,
+        "5": 44,
+        "6": 62
+      },
+      "squad": [
+        {
+          "element": 496,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 8,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 423,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 112,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 237,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 427,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 426,
+          "position": 7,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 557,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 346,
+          "position": 9,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 165,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 411,
+          "position": 11,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 109,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 504,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 124,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 259,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "756483": {
+      "gws": {
+        "1": 50,
+        "2": 114,
+        "3": 58,
+        "4": 76,
+        "5": 32,
+        "6": 52
+      },
+      "squad": [
+        {
+          "element": 496,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 423,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 391,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 8,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 557,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 426,
+          "position": 6,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 427,
+          "position": 7,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 542,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 480,
+          "position": 9,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 411,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 165,
+          "position": 11,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 497,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 305,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 173,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 272,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "518209": {
+      "gws": {
+        "1": 53,
+        "2": 117,
+        "3": 45,
+        "4": 83,
+        "5": 44,
+        "6": 57
+      },
+      "squad": [
+        {
+          "element": 1,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 8,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 418,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 4,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 426,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 124,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 427,
+          "position": 7,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 289,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 237,
+          "position": 9,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 165,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 411,
+          "position": 11,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 497,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 259,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 272,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 173,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "3581128": {
+      "gws": {
+        "1": 65,
+        "2": 86,
+        "3": 34,
+        "4": 66,
+        "5": 41,
+        "6": 57
+      },
+      "squad": [
+        {
+          "element": 412,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 10,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 423,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 473,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 426,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 368,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 13,
+          "position": 7,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 237,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 165,
+          "position": 9,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 411,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 346,
+          "position": 11,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 496,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 124,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 31,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 175,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "7009706": {
+      "gws": {
+        "1": 68,
+        "2": 83,
+        "3": 46,
+        "4": 67,
+        "5": 43,
+        "6": 57
+      },
+      "squad": [
+        {
+          "element": 1,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 8,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 423,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 469,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 397,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 427,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 12,
+          "position": 7,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 40,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 237,
+          "position": 9,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 165,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 106,
+          "position": 11,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 497,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 55,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 201,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 112,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "5021862": {
+      "gws": {
+        "1": 70,
+        "2": 60,
+        "3": 67,
+        "4": 51,
+        "5": 65,
+        "6": 34
+      },
+      "squad": [
+        {
+          "element": 412,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 4,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 142,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 391,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 154,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 397,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 15,
+          "position": 7,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 428,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 68,
+          "position": 9,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 379,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 464,
+          "position": 11,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 496,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 55,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 62,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 449,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "2289310": {
+      "gws": {
+        "1": 39,
+        "2": 83,
+        "3": 63,
+        "4": 77,
+        "5": 53,
+        "6": 49
+      },
+      "squad": [
+        {
+          "element": 496,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 388,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 112,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 423,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 426,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 557,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 40,
+          "position": 7,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 480,
+          "position": 8,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 411,
+          "position": 9,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 552,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 346,
+          "position": 11,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 250,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 246,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 31,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 173,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    },
+    "1281784": {
+      "gws": {
+        "1": 47,
+        "2": 70,
+        "3": 48,
+        "4": 62,
+        "5": 50,
+        "6": 29
+      },
+      "squad": [
+        {
+          "element": 1,
+          "position": 1,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 142,
+          "position": 2,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 473,
+          "position": 3,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 8,
+          "position": 4,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 233,
+          "position": 5,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 397,
+          "position": 6,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 366,
+          "position": 7,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 480,
+          "position": 8,
+          "is_captain": true,
+          "is_vice_captain": false
+        },
+        {
+          "element": 15,
+          "position": 9,
+          "is_captain": false,
+          "is_vice_captain": true
+        },
+        {
+          "element": 527,
+          "position": 10,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 106,
+          "position": 11,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 467,
+          "position": 12,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 379,
+          "position": 13,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 260,
+          "position": 14,
+          "is_captain": false,
+          "is_vice_captain": false
+        },
+        {
+          "element": 149,
+          "position": 15,
+          "is_captain": false,
+          "is_vice_captain": false
+        }
+      ]
+    }
+  }
+}

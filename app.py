@@ -57,6 +57,21 @@ CURRIES_STACK = True
 # Every transfer hit (-4, -8 ...) taken this season is saved here.
 HITS_FILE = "fpl_hits.json"
 
+# Hits parade (stars v clowns on the transfers picture).
+# Saved so finished gameweeks are only worked out once.
+PARADE_FILE = "fpl_hits_parade.json"
+
+# "What if nobody had ever made a transfer" table (GW1 team kept all season)
+GW1_FILE = "fpl_gw1_team.json"
+
+# A transfer that costs a hit is judged on: points in - points out - 4.
+# Set to False to judge on the raw points only (in v out).
+PARADE_DEDUCT_HIT = True
+
+# True = only the transfers that actually cost -4 get a star/clown.
+# False = free transfers get one too.
+PARADE_HITS_ONLY = False
+
 # Points left on the bench, worked out once per finished gameweek and saved
 # here so old gameweeks never need to be looked up again.
 BENCH_FILE = "fpl_bench.json"
@@ -1819,6 +1834,197 @@ def get_manager_transfers(entry_id):
         return []
 
 
+def load_parade_cache():
+    """Saved hits parade results ({gameweek: {entry: {stars, clowns}}})."""
+
+    rules = f"hits_only={PARADE_HITS_ONLY},deduct_hit={PARADE_DEDUCT_HIT}"
+
+    if not os.path.exists(PARADE_FILE):
+        return {"rules": rules, "gameweeks": {}}
+
+    try:
+        with open(PARADE_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        # Saved with different rules (e.g. hits only)? Start again
+        if data.get("rules") != rules:
+            return {"rules": rules, "gameweeks": {}}
+
+        data.setdefault("gameweeks", {})
+        return data
+
+    except Exception:
+        return {"rules": rules, "gameweeks": {}}
+
+
+def save_parade_cache(cache):
+    """Save the hits parade so finished gameweeks are only fetched once."""
+
+    with open(PARADE_FILE, "w", encoding="utf-8") as file:
+        json.dump(cache, file, indent=2)
+
+
+def judge_transfers(transfers, hit_cost, live_points):
+    """Work out a star / clown for every transfer in one Gameweek.
+
+    Free transfers are used first, so the LAST transfers made in the
+    Gameweek are the ones that cost the -4 hits (those get the -4
+    taken off before judging).
+
+    Star  = player in outscored player out (after the -4 if it was a hit)
+    Clown = player out outscored player in
+    Level = no icon
+    Returns a list (oldest transfer first).
+    """
+
+    transfers = sorted(transfers, key=lambda t: t.get("time", ""))
+
+    hits_taken = max(0, hit_cost // 4)
+    first_hit = max(0, len(transfers) - hits_taken)
+
+    rows = []
+
+    for index, t in enumerate(transfers):
+        out_id = t["element_out"]
+        in_id = t["element_in"]
+
+        out_points = live_points.get(out_id, 0)
+        in_points = live_points.get(in_id, 0)
+
+        is_hit = index >= first_hit and hits_taken > 0
+
+        net = in_points - out_points
+
+        if is_hit and PARADE_DEDUCT_HIT:
+            net -= 4
+
+        if PARADE_HITS_ONLY and not is_hit:
+            verdict = None
+        elif net > 0:
+            verdict = "star"
+        elif net < 0:
+            verdict = "clown"
+        else:
+            verdict = None
+
+        rows.append({
+            "out_id": out_id,
+            "in_id": in_id,
+            "out_points": out_points,
+            "in_points": in_points,
+            "is_hit": is_hit,
+            "net": net,
+            "verdict": verdict
+        })
+
+    return rows
+
+
+def count_verdicts(rows):
+    """(stars, clowns) in a list of judged transfers."""
+
+    stars = sum(1 for r in rows if r["verdict"] == "star")
+    clowns = sum(1 for r in rows if r["verdict"] == "clown")
+
+    return stars, clowns
+
+
+def get_parade_tally(league_rows, up_to_gw, live_gw, all_transfers):
+    """Season-long stars and clowns per manager, up to a Gameweek.
+
+    Finished gameweeks are saved and only fetched once.  The Gameweek
+    still being played is worked out fresh every time (never saved).
+    Returns {entry_id: {"stars": n, "clowns": n}}.
+    """
+
+    cache = load_parade_cache()
+    gameweeks = cache["gameweeks"]
+
+    live_cache = {}
+    changed = False
+
+    tally = {}
+
+    for row in league_rows:
+
+        entry_id = row.get("entry")
+
+        history = row.get("history") or {}
+        current = history.get("current", [])
+
+        # If FPL didn't answer, don't guess (and don't save zeros)
+        if not current:
+            tally[entry_id] = {"stars": 0, "clowns": 0}
+            continue
+
+        cost_by_gw = {
+            gw.get("event"): gw.get("event_transfers_cost", 0)
+            for gw in current
+        }
+
+        if live_gw and live_gw not in cost_by_gw:
+            cost_by_gw[live_gw] = row.get("gw_hit", 0)
+
+        transfers_by_gw = {}
+
+        for t in all_transfers.get(entry_id, []):
+            transfers_by_gw.setdefault(t.get("event"), []).append(t)
+
+        stars = 0
+        clowns = 0
+
+        for gw in range(1, up_to_gw + 1):
+
+            hit_cost = cost_by_gw.get(gw, 0)
+            gw_transfers = transfers_by_gw.get(gw, [])
+
+            # No hit and hits-only mode = nothing to judge
+            if PARADE_HITS_ONLY and hit_cost <= 0:
+                continue
+
+            if not gw_transfers:
+                continue
+
+            # The Gameweek being played is never saved
+            finished = gw < live_gw
+
+            saved = gameweeks.get(str(gw), {}).get(str(entry_id))
+
+            if finished and saved is not None:
+                stars += saved["stars"]
+                clowns += saved["clowns"]
+                continue
+
+            if gw not in live_cache:
+                live_cache[gw] = get_live_points(gw)
+
+            if not live_cache[gw]:
+                continue
+
+            judged = judge_transfers(gw_transfers, hit_cost, live_cache[gw])
+            gw_stars, gw_clowns = count_verdicts(judged)
+
+            stars += gw_stars
+            clowns += gw_clowns
+
+            if finished:
+                gameweeks.setdefault(str(gw), {})[str(entry_id)] = {
+                    "stars": gw_stars,
+                    "clowns": gw_clowns
+                }
+                changed = True
+
+        tally[entry_id] = {"stars": stars, "clowns": clowns}
+
+    if changed:
+        try:
+            save_parade_cache(cache)
+        except Exception:
+            pass
+
+    return tally
+
+
 def build_transfers_data(gameweek):
     """Collect each manager's transfers for one Gameweek."""
 
@@ -1840,6 +2046,14 @@ def build_transfers_data(gameweek):
         "3xc": "TRIPLE CAPTAIN",
         "manager": "ASSISTANT MANAGER"
     }
+
+    # Every transfer each manager has made all season (fetched once)
+    all_transfers = {
+        row.get("entry"): get_manager_transfers(row.get("entry"))
+        for row in league_rows
+    }
+
+    tally = get_parade_tally(league_rows, gameweek, live_gw, all_transfers)
 
     managers = []
 
@@ -1866,38 +2080,32 @@ def build_transfers_data(gameweek):
         ]
 
         transfers = [
-            t for t in get_manager_transfers(entry_id)
+            t for t in all_transfers.get(entry_id, [])
             if t.get("event") == gameweek
         ]
 
-        transfers.sort(key=lambda t: t.get("time", ""))
+        judged = judge_transfers(transfers, hit_cost, live_points)
 
         transfer_rows = []
 
-        for t in transfers:
-            out_id = t["element_out"]
-            in_id = t["element_in"]
-
+        for j in judged:
             transfer_rows.append({
-                "out": player_names.get(out_id, "Unknown"),
-                "out_points": live_points.get(out_id, 0),
-                "in": player_names.get(in_id, "Unknown"),
-                "in_points": live_points.get(in_id, 0)
+                "out": player_names.get(j["out_id"], "Unknown"),
+                "out_points": j["out_points"],
+                "in": player_names.get(j["in_id"], "Unknown"),
+                "in_points": j["in_points"],
+                "is_hit": j["is_hit"],
+                "net": j["net"],
+                "verdict": j["verdict"]
             })
 
-        # Did the players brought in outscore the players taken out,
-        # once the points hit has been paid? (e.g. +15 - 12 = +3 = star)
+        # Totals for the summary line (points hit paid once, as before)
         in_total = sum(t["in_points"] for t in transfer_rows)
         out_total = sum(t["out_points"] for t in transfer_rows)
 
         net = in_total - out_total - hit_cost
 
-        if not transfer_rows or net == 0:
-            verdict = None
-        elif net > 0:
-            verdict = "star"
-        else:
-            verdict = "clown"
+        season = tally.get(entry_id, {"stars": 0, "clowns": 0})
 
         managers.append({
             "rank": row["league_rank"],
@@ -1911,7 +2119,8 @@ def build_transfers_data(gameweek):
             "in_total": in_total,
             "out_total": out_total,
             "net": net,
-            "verdict": verdict
+            "stars": season["stars"],
+            "clowns": season["clowns"]
         })
 
     managers.sort(
@@ -2056,29 +2265,84 @@ def create_transfers_graphic(data):
                         font=small_font
                     )
 
-            # Gold star if the players in outscored the players out,
-            # clown if they didn't
-            verdict = m.get("verdict")
+            # Summary shown top right (also used to check for overlap)
+            summary = None
 
-            if verdict:
+            if m["transfers"]:
+                if m["hit_cost"]:
+                    summary = (
+                        f"IN {m['in_total']} • OUT {m['out_total']} "
+                        f"• HIT -{m['hit_cost']} ({m['net']:+d})"
+                    )
+                else:
+                    summary = (
+                        f"IN {m['in_total']} • OUT {m['out_total']} "
+                        f"({m['net']:+d})"
+                    )
+
+            # Hits parade score: stars v clowns for the season so far.
+            # Sits next to the name; drops to the team line if the
+            # name is too long to leave room for it.
+            stars = m.get("stars", 0)
+            clowns = m.get("clowns", 0)
+
+            star_text = str(stars)
+            clown_text = str(clowns)
+
+            tally_w = (
+                30 + int(draw.textlength(star_text, font=player_font)) + 12
+                + 30 + int(draw.textlength(clown_text, font=player_font))
+            )
+
+            icon_x = int(
+                x + 25
+                + draw.textlength(name_text, font=name_font)
+                + 12
+            )
+
+            if curries:
+                icon_x += 34
+
+                if curries > 1:
+                    icon_x += 32
+
+            summary_left = x + col_w - 25
+
+            if summary:
+                summary_left -= int(draw.textlength(summary, font=small_font))
+
+            tally_y = y + 14
+
+            if icon_x + tally_w > summary_left - 12:
                 icon_x = int(
                     x + 25
-                    + draw.textlength(name_text, font=name_font)
-                    + 8
+                    + draw.textlength(m["team"][:34], font=small_font)
+                    + 14
                 )
+                tally_y = y + 46
 
-                if curries:
-                    icon_x += 34
+            star_icon = get_star_icon(26)
+            image.paste(star_icon, (icon_x, tally_y), star_icon)
+            icon_x += 30
 
-                    if curries > 1:
-                        icon_x += 32
+            draw.text(
+                (icon_x, tally_y + 3),
+                star_text,
+                fill=gold,
+                font=player_font
+            )
+            icon_x += int(draw.textlength(star_text, font=player_font)) + 12
 
-                if verdict == "star":
-                    icon = get_star_icon(28)
-                else:
-                    icon = get_clown_icon(28)
+            clown_icon = get_clown_icon(26)
+            image.paste(clown_icon, (icon_x, tally_y), clown_icon)
+            icon_x += 30
 
-                image.paste(icon, (icon_x, y + 14), icon)
+            draw.text(
+                (icon_x, tally_y + 3),
+                clown_text,
+                fill=red,
+                font=player_font
+            )
 
             draw.text(
                 (x + 25, y + 48),
@@ -2093,20 +2357,9 @@ def create_transfers_graphic(data):
             if m["transfers"]:
                 diff = m["net"]
 
-                if m["hit_cost"]:
-                    summary = (
-                        f"IN {m['in_total']} • OUT {m['out_total']} "
-                        f"• HIT -{m['hit_cost']} ({diff:+d})"
-                    )
-                else:
-                    summary = (
-                        f"IN {m['in_total']} • OUT {m['out_total']} "
-                        f"({diff:+d})"
-                    )
-
-                if verdict == "star":
+                if diff > 0:
                     verdict_colour = gold
-                elif verdict == "clown":
+                elif diff < 0:
                     verdict_colour = red
                 else:
                     verdict_colour = grey
@@ -2188,6 +2441,22 @@ def create_transfers_graphic(data):
                         font=small_font
                     )
 
+                    # Star if the player in outscored the player out,
+                    # clown if the player out scored more (hits only)
+                    if t.get("verdict") == "star":
+                        line_icon = get_star_icon(26)
+                    elif t.get("verdict") == "clown":
+                        line_icon = get_clown_icon(26)
+                    else:
+                        line_icon = None
+
+                    if line_icon:
+                        image.paste(
+                            line_icon,
+                            (x + col_w - 15 - 34, row_y + 2),
+                            line_icon
+                        )
+
                     row_y += transfer_h
 
             y += h + block_gap
@@ -2210,8 +2479,9 @@ def create_transfers_graphic(data):
     )
     draw.text(
         (50, height - 45),
-        "Gold star = players in outscored players out after hits  •  "
-        "Clown = they didn't",
+        "Per transfer: gold star = player in outscored player out "
+        "(after the -4 on hits)  •  Clown = player out scored more  •  "
+        "Score by name = season stars v clowns",
         fill=gold,
         font=small_font
     )
@@ -2221,6 +2491,239 @@ def create_transfers_graphic(data):
     output.seek(0)
 
     return output
+
+
+# ============================================================
+# GW1 TEAM, NO TRANSFERS ("what if they never changed it")
+# ============================================================
+
+def get_player_positions():
+    """Map player element IDs to position (1 GK, 2 DEF, 3 MID, 4 FWD)."""
+
+    data = fpl_get("bootstrap-static/")
+
+    return {
+        element["id"]: element.get("element_type", 3)
+        for element in data.get("elements", [])
+    }
+
+
+def get_live_stats(gameweek):
+    """Map player element IDs to {points, minutes} for a Gameweek."""
+
+    try:
+        data = fpl_get(f"event/{gameweek}/live/")
+
+        return {
+            element["id"]: {
+                "points": element.get("stats", {}).get("total_points", 0),
+                "minutes": element.get("stats", {}).get("minutes", 0)
+            }
+            for element in data.get("elements", [])
+        }
+    except Exception:
+        return {}
+
+
+def load_gw1_cache():
+    """Saved GW1-team results ({entry: {squad, gws}})."""
+
+    if not os.path.exists(GW1_FILE):
+        return {"entries": {}}
+
+    try:
+        with open(GW1_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        data.setdefault("entries", {})
+        return data
+
+    except Exception:
+        return {"entries": {}}
+
+
+def save_gw1_cache(cache):
+    """Save results so finished gameweeks are only worked out once."""
+
+    with open(GW1_FILE, "w", encoding="utf-8") as file:
+        json.dump(cache, file, indent=2)
+
+
+def score_fixed_team(squad, stats, positions):
+    """Points the GW1 squad would score in one finished Gameweek.
+
+    - Starting XI from GW1 (bench in GW1 order), no transfers, no chips
+    - Captain scores double (vice-captain if the captain didn't play)
+    - Automatic substitutions use the normal FPL rules
+    """
+
+    def minutes(element):
+        return stats.get(element, {}).get("minutes", 0)
+
+    def points(element):
+        return stats.get(element, {}).get("points", 0)
+
+    ordered = sorted(squad, key=lambda p: p["position"])
+
+    xi = [p["element"] for p in ordered if p["position"] <= 11]
+    bench = [p["element"] for p in ordered if p["position"] > 11]
+
+    used = set()
+
+    def formation_ok(players):
+        counts = {1: 0, 2: 0, 3: 0, 4: 0}
+
+        for element in players:
+            counts[positions.get(element, 3)] += 1
+
+        return counts[2] >= 3 and counts[3] >= 2 and counts[4] >= 1
+
+    for starter in list(xi):
+
+        if minutes(starter) > 0:
+            continue
+
+        for sub in bench:
+
+            if sub in used or minutes(sub) == 0:
+                continue
+
+            starter_gk = positions.get(starter, 3) == 1
+            sub_gk = positions.get(sub, 3) == 1
+
+            if starter_gk != sub_gk:
+                continue
+
+            if not starter_gk:
+                trial = [x for x in xi if x != starter] + [sub]
+
+                if not formation_ok(trial):
+                    continue
+
+            xi[xi.index(starter)] = sub
+            used.add(sub)
+            break
+
+    total = sum(points(element) for element in xi)
+
+    captain = next((p["element"] for p in squad if p.get("is_captain")), None)
+    vice = next((p["element"] for p in squad if p.get("is_vice_captain")), None)
+
+    # Captain's points count twice (vice-captain if captain didn't play)
+    if captain is not None and minutes(captain) > 0:
+        total += points(captain)
+    elif vice is not None and minutes(vice) > 0:
+        total += points(vice)
+
+    return total
+
+
+def build_gw1_team_data(league_rows, finished_gw):
+    """Running total of each manager's GW1 team, up to the last
+    finished Gameweek, next to what they actually scored."""
+
+    cache = load_gw1_cache()
+    positions = get_player_positions()
+
+    stats_cache = {}
+    changed = False
+
+    managers = []
+
+    for row in league_rows:
+
+        entry_id = row.get("entry")
+        key = str(entry_id)
+
+        entry_cache = cache["entries"].setdefault(key, {"gws": {}})
+
+        # The GW1 squad (kept forever once fetched)
+        if not entry_cache.get("squad"):
+
+            picks = get_manager_picks(entry_id, 1).get("picks", [])
+
+            if picks:
+                entry_cache["squad"] = [
+                    {
+                        "element": p["element"],
+                        "position": p["position"],
+                        "is_captain": p.get("is_captain", False),
+                        "is_vice_captain": p.get("is_vice_captain", False)
+                    }
+                    for p in picks
+                ]
+                changed = True
+
+        squad = entry_cache.get("squad")
+
+        by_gw = []
+        running = []
+        total = 0
+
+        if squad:
+
+            for gw in range(1, finished_gw + 1):
+
+                saved = entry_cache["gws"].get(str(gw))
+
+                if saved is None:
+
+                    if gw not in stats_cache:
+                        stats_cache[gw] = get_live_stats(gw)
+
+                    if not stats_cache[gw]:
+                        break    # FPL didn't answer - try again next time
+
+                    saved = score_fixed_team(squad, stats_cache[gw], positions)
+
+                    entry_cache["gws"][str(gw)] = saved
+                    changed = True
+
+                total += saved
+                by_gw.append(saved)
+                running.append(total)
+
+        # What they actually scored (after hits, chips and all)
+        current = (row.get("history") or {}).get("current", [])
+
+        actual = None
+
+        for g in current:
+            if g.get("event") == finished_gw:
+                actual = g.get("total_points")
+
+        if actual is None and current:
+            actual = current[-1].get("total_points")
+
+        managers.append({
+            "entry": entry_id,
+            "manager": row.get("player_name", "Unknown Manager"),
+            "team": row.get("entry_name", "Unknown Team"),
+            "has_team": bool(squad),
+            "by_gw": by_gw,
+            "running": running,
+            "total": total if squad else None,
+            "actual": actual
+        })
+
+    if changed:
+        try:
+            save_gw1_cache(cache)
+        except Exception:
+            pass
+
+    managers.sort(
+        key=lambda m: (
+            m["total"] is None,
+            -(m["total"] or 0),
+            m["manager"]
+        )
+    )
+
+    return {
+        "finished_gw": finished_gw,
+        "managers": managers
+    }
 
 
 # ============================================================
@@ -2297,6 +2800,25 @@ def api_hits():
         "total_hits": sum(m["total_hits"] for m in managers),
         "managers": managers
     })
+
+
+@app.route("/api/gw1-team")
+def api_gw1_team():
+    """Running total if everyone had kept their Gameweek 1 team."""
+
+    try:
+        league_name, standings = get_league()
+        finished_gw = get_current_gameweek()
+
+        rows, _ = get_league_rows(standings, finished_gw)
+
+        return jsonify(build_gw1_team_data(rows, finished_gw))
+
+    except Exception as error:
+
+        return jsonify({
+            "error": str(error)
+        }), 500
 
 
 @app.route("/download-whatsapp")
@@ -3230,6 +3752,26 @@ button:hover {
 
     </div>
 
+
+    <div class="chart-card">
+
+        <h2>
+            🧊 Frozen GW1 Team (No Transfers)
+        </h2>
+
+        <div class="chip-note">
+            Running total if each manager had kept their Gameweek 1 squad
+            all season: same starting XI, bench order and captain, no
+            transfers, no hits and no chips. Auto-subs and the
+            vice-captain rule still apply. Counted once each gameweek has
+            finished. "Transfers effect" is actual total minus frozen
+            total, so green means their changes paid off.
+        </div>
+
+        <div id="gw1Team" style="overflow-x: auto;"></div>
+
+    </div>
+
 </div>
 
 
@@ -3417,6 +3959,8 @@ function renderDashboard(data) {
     renderChipScores(
         data.players
     );
+
+    loadGw1Team();
 }
 
 
@@ -4414,6 +4958,140 @@ function downloadCaptainsPng() {
 /* ==========================================================
    SECURITY
    ========================================================== */
+
+/* ==========================================================
+   FROZEN GW1 TEAM (no transfers)
+   ========================================================== */
+
+async function loadGw1Team() {
+
+    const box = document.getElementById("gw1Team");
+
+    if (!box.innerHTML.trim()) {
+        box.innerHTML =
+            `<div class="chip-note">Working out GW1 teams...</div>`;
+    }
+
+    try {
+
+        const response = await fetch("/api/gw1-team");
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        renderGw1Team(data);
+
+    } catch (error) {
+
+        console.error(error);
+
+        box.innerHTML =
+            `<div class="chip-note">Couldn't load this table: `
+            + `${escapeHtml(error.message)}</div>`;
+    }
+}
+
+function renderGw1Team(data) {
+
+    const box = document.getElementById("gw1Team");
+
+    if (!data.finished_gw) {
+        box.innerHTML =
+            `<div class="chip-note">No finished gameweeks yet.</div>`;
+        return;
+    }
+
+    let headers = "";
+
+    for (let gw = 1; gw <= data.finished_gw; gw++) {
+        headers += `<th>GW${gw}</th>`;
+    }
+
+    let rows = "";
+
+    data.managers.forEach((m, index) => {
+
+        if (!m.has_team) {
+
+            rows += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>
+                        <strong>${escapeHtml(m.manager)}</strong>
+                        <div class="hits-weeks">${escapeHtml(m.team)}</div>
+                    </td>
+                    <td colspan="${data.finished_gw + 3}"
+                        style="color: #5d776c;">
+                        No GW1 team found
+                    </td>
+                </tr>
+            `;
+
+            return;
+        }
+
+        const diff = (m.actual === null || m.actual === undefined)
+            ? null
+            : m.actual - m.total;
+
+        let diffCell = `<td style="color: #5d776c;">—</td>`;
+
+        if (diff !== null) {
+
+            const colour = diff > 0 ? "#00ff87"
+                         : diff < 0 ? "#ff4d6d"
+                         : "#a9c5b9";
+
+            const sign = diff > 0 ? "+" : "";
+
+            diffCell = `<td style="color: ${colour}; font-weight: 900;">`
+                     + `${sign}${diff}</td>`;
+        }
+
+        let cells = "";
+
+        for (let i = 0; i < data.finished_gw; i++) {
+
+            cells += (m.running[i] === undefined)
+                ? `<td style="color: #5d776c;">—</td>`
+                : `<td>${m.running[i]}</td>`;
+        }
+
+        rows += `
+            <tr>
+                <td>${index + 1}</td>
+                <td style="white-space: nowrap;">
+                    <strong>${escapeHtml(m.manager)}</strong>
+                    <div class="hits-weeks">${escapeHtml(m.team)}</div>
+                </td>
+                <td style="color: #00ff87; font-weight: 900;">${m.total}</td>
+                <td>${m.actual === null ? "—" : m.actual}</td>
+                ${diffCell}
+                ${cells}
+            </tr>
+        `;
+    });
+
+    box.innerHTML = `
+        <table class="hits-table">
+
+            <tr>
+                <th>#</th>
+                <th>MANAGER</th>
+                <th>GW1 TEAM</th>
+                <th>ACTUAL</th>
+                <th>TRANSFERS EFFECT</th>
+                ${headers}
+            </tr>
+
+            ${rows}
+
+        </table>
+    `;
+}
+
 
 function escapeHtml(
     text

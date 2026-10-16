@@ -1,0 +1,125 @@
+{
+  "rules": "hits_only=False,deduct_hit=True",
+  "gameweeks": {
+    "2": {
+      "3061020": {
+        "stars": 0,
+        "clowns": 0
+      },
+      "7009706": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "2289310": {
+        "stars": 0,
+        "clowns": 1
+      },
+      "1281784": {
+        "stars": 0,
+        "clowns": 1
+      }
+    },
+    "3": {
+      "3061020": {
+        "stars": 0,
+        "clowns": 2
+      },
+      "390134": {
+        "stars": 0,
+        "clowns": 1
+      },
+      "7147625": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "756483": {
+        "stars": 0,
+        "clowns": 2
+      },
+      "518209": {
+        "stars": 2,
+        "clowns": 0
+      },
+      "5021862": {
+        "stars": 0,
+        "clowns": 0
+      },
+      "2289310": {
+        "stars": 0,
+        "clowns": 1
+      },
+      "1281784": {
+        "stars": 4,
+        "clowns": 1
+      }
+    },
+    "4": {
+      "3061020": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "390134": {
+        "stars": 11,
+        "clowns": 6
+      },
+      "7147625": {
+        "stars": 1,
+        "clowns": 1
+      },
+      "756483": {
+        "stars": 11,
+        "clowns": 8
+      },
+      "3581128": {
+        "stars": 1,
+        "clowns": 1
+      },
+      "7009706": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "5021862": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "2289310": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "1281784": {
+        "stars": 1,
+        "clowns": 0
+      }
+    },
+    "5": {
+      "3061020": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "756483": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "518209": {
+        "stars": 0,
+        "clowns": 1
+      },
+      "3581128": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "7009706": {
+        "stars": 0,
+        "clowns": 1
+      },
+      "2289310": {
+        "stars": 1,
+        "clowns": 0
+      },
+      "1281784": {
+        "stars": 1,
+        "clowns": 0
+      }
+    }
+  }
+}
