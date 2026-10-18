@@ -64,6 +64,17 @@ PARADE_FILE = "fpl_hits_parade.json"
 # "What if nobody had ever made a transfer" table (GW1 team kept all season)
 GW1_FILE = "fpl_gw1_team.json"
 
+# Liverpool fitness card.  FPL lists every registered player, including
+# youngsters, so "first team" = costs at least this much (in tenths of
+# a million, 45 = 4.5m) OR has played at least this many minutes.
+LIVERPOOL_TEAM_NAME = "Liverpool"
+FIRST_TEAM_MIN_PRICE = 45
+FIRST_TEAM_MIN_MINUTES = 270
+
+# Players to leave out (FPL "web names", e.g. ["Kelleher"]) - for anyone
+# who isn't really first team or has left.
+LIVERPOOL_IGNORE = []
+
 # A transfer that costs a hit is judged on: points in - points out - 4.
 # Set to False to judge on the raw points only (in v out).
 PARADE_DEDUCT_HIT = True
@@ -2845,6 +2856,91 @@ def api_deadline():
         }), 500
 
 
+@app.route("/api/liverpool-fitness")
+def api_liverpool_fitness():
+    """Is the whole Liverpool first-team squad fit? (from FPL's own data)"""
+
+    try:
+        data = fpl_get("bootstrap-static/")
+
+        team = next(
+            (t for t in data.get("teams", [])
+             if t.get("name") == LIVERPOOL_TEAM_NAME),
+            None
+        )
+
+        if not team:
+            return jsonify({"error": "Liverpool not found in FPL data"}), 500
+
+        labels = {
+            "d": "Doubtful",
+            "i": "Injured",
+            "n": "Not available",
+            "s": "Suspended"
+        }
+
+        unfit = []
+        suspended = []
+        first_team = 0
+
+        for p in data.get("elements", []):
+
+            if p.get("team") != team["id"]:
+                continue
+
+            if p.get("web_name") in LIVERPOOL_IGNORE:
+                continue
+
+            status = p.get("status", "a")
+
+            # "u" = left the club / unavailable on loan
+            if status == "u":
+                continue
+
+            is_first_team = (
+                p.get("now_cost", 0) >= FIRST_TEAM_MIN_PRICE
+                or p.get("minutes", 0) >= FIRST_TEAM_MIN_MINUTES
+            )
+
+            if not is_first_team:
+                continue
+
+            first_team += 1
+
+            if status == "a":
+                continue
+
+            news = (p.get("news") or "").strip()
+
+            if status == "n" and not news:
+                continue
+
+            item = {
+                "name": p.get("web_name"),
+                "status": labels.get(status, status),
+                "news": news,
+                "chance": p.get("chance_of_playing_next_round")
+            }
+
+            if status == "s":
+                suspended.append(item)
+            else:
+                unfit.append(item)
+
+        return jsonify({
+            "fit": len(unfit) == 0,
+            "squad_size": first_team,
+            "unfit": unfit,
+            "suspended": suspended
+        })
+
+    except Exception as error:
+
+        return jsonify({
+            "error": str(error)
+        }), 500
+
+
 @app.route("/api/gw1-team")
 def api_gw1_team():
     """Running total if everyone had kept their Gameweek 1 team."""
@@ -3080,6 +3176,76 @@ body {
 
 .deadline-urgent .deadline-time {
     color: #ff4d6d;
+}
+
+.ticker {
+
+    overflow: hidden;
+
+    white-space: nowrap;
+
+    padding: 12px 0;
+
+    background: #061a14;
+
+    border-bottom: 2px solid rgba(0, 255, 135, 0.35);
+}
+
+.ticker-track {
+
+    display: inline-block;
+
+    padding-left: 100%;
+
+    font-size: 20px;
+
+    font-weight: 900;
+
+    letter-spacing: 1px;
+
+    animation: ticker-scroll 40s linear infinite;
+}
+
+.ticker:hover .ticker-track {
+    animation-play-state: paused;
+}
+
+.ticker-fit .ticker-track {
+
+    color: #00ff87;
+
+    text-shadow: 0 0 12px rgba(0, 255, 135, 0.6);
+}
+
+.ticker-unfit .ticker-track {
+    color: #ffd700;
+}
+
+.ticker-unfit .ticker-name {
+    color: #ff4d6d;
+}
+
+@keyframes ticker-scroll {
+
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-100%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .ticker {
+        white-space: normal;
+    }
+
+    .ticker-track {
+        padding-left: 20px;
+        animation: none;
+    }
 }
 
 .controls {
@@ -3737,6 +3903,10 @@ button:hover {
 
 </div>
 
+<div id="lfcTicker" class="ticker" style="display: none;">
+    <div class="ticker-track" id="lfcTickerTrack"></div>
+</div>
+
 
 <div class="controls">
 
@@ -3876,6 +4046,21 @@ button:hover {
         </div>
 
         <div id="gw1Team" style="overflow-x: auto;"></div>
+
+    </div>
+
+
+    <div class="chart-card">
+
+        <h2>
+            🔴 Liverpool Fitness
+        </h2>
+
+        <div class="chip-note">
+            Uses FPL's own injury news, so it can lag behind the club.
+        </div>
+
+        <div id="liverpoolFitness"></div>
 
     </div>
 
@@ -4068,6 +4253,7 @@ function renderDashboard(data) {
     );
 
     loadGw1Team();
+    loadLiverpool();
 }
 
 
@@ -5197,6 +5383,175 @@ function renderGw1Team(data) {
 
         </table>
     `;
+}
+
+
+/* ==========================================================
+   LIVERPOOL FITNESS
+   ========================================================== */
+
+async function loadLiverpool() {
+
+    const box = document.getElementById("liverpoolFitness");
+
+    try {
+
+        const response = await fetch("/api/liverpool-fitness");
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        renderLiverpoolTicker(data);
+
+        let html = "";
+
+        if (data.fit) {
+
+            html += `
+                <div style="color: #00ff87; font-size: 26px;
+                            font-weight: 900; margin: 10px 0;">
+                    ✅ Whole first-team squad is fit
+                    <span class="hits-weeks">
+                        (${data.squad_size} players checked)
+                    </span>
+                </div>
+            `;
+
+        } else {
+
+            let rows = "";
+
+            data.unfit.forEach(p => {
+
+                const chance = (p.chance === null || p.chance === undefined)
+                    ? "—"
+                    : p.chance + "%";
+
+                rows += `
+                    <tr>
+                        <td><strong>${escapeHtml(p.name)}</strong></td>
+                        <td style="color: #ff4d6d;">
+                            ${escapeHtml(p.status)}
+                        </td>
+                        <td>${chance}</td>
+                        <td>${escapeHtml(p.news)}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                <div style="color: #ffd700; font-size: 22px;
+                            font-weight: 900; margin: 10px 0;">
+                    ⚠️ ${data.unfit.length} not fully fit
+                    <span class="hits-weeks">
+                        (${data.squad_size} players checked)
+                    </span>
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table class="hits-table">
+                        <tr>
+                            <th>PLAYER</th>
+                            <th>STATUS</th>
+                            <th>CHANCE NEXT GW</th>
+                            <th>NEWS</th>
+                        </tr>
+                        ${rows}
+                    </table>
+                </div>
+            `;
+        }
+
+        if (data.suspended.length) {
+
+            html += `
+                <div class="hits-weeks" style="margin-top: 10px;">
+                    Suspended: ${data.suspended
+                        .map(p => escapeHtml(p.name)).join(", ")}
+                </div>
+            `;
+        }
+
+        box.innerHTML = html;
+
+    } catch (error) {
+
+        console.error(error);
+
+        document.getElementById("lfcTicker").style.display = "none";
+
+        box.innerHTML =
+            `<div class="chip-note">Couldn't load this: `
+            + `${escapeHtml(error.message)}</div>`;
+    }
+}
+
+
+/* ==========================================================
+   LIVERPOOL TICKER
+   ========================================================== */
+
+function renderLiverpoolTicker(data) {
+
+    const ticker = document.getElementById("lfcTicker");
+    const track = document.getElementById("lfcTickerTrack");
+
+    let item = "";
+    let separator = "";
+
+    if (data.fit) {
+
+        ticker.className = "ticker ticker-fit";
+
+        item = "✅ LIVERPOOL ARE FULLY FIT &nbsp;⚽&nbsp; "
+             + "LIVERPOOL WILL WIN THE UCL! &nbsp;🏆🔴";
+
+        separator = " &nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp; ";
+
+    } else {
+
+        ticker.className = "ticker ticker-unfit";
+
+        const parts = data.unfit.map(p => {
+
+            const chance = (p.chance === null || p.chance === undefined)
+                ? ""
+                : ", " + p.chance + "% chance";
+
+            const news = p.news ? " - " + p.news : "";
+
+            return `<span class="ticker-name">`
+                 + escapeHtml(p.name.toUpperCase())
+                 + `</span> (${escapeHtml(p.status + chance + news)})`;
+        });
+
+        item = "🚑 LIVERPOOL INJURY NEWS: " + parts.join(" &nbsp;•&nbsp; ");
+
+        if (data.suspended.length) {
+            item += " &nbsp;•&nbsp; 🟨 SUSPENDED: "
+                  + data.suspended
+                      .map(p => escapeHtml(p.name.toUpperCase()))
+                      .join(", ");
+        }
+
+        separator = " &nbsp;&nbsp;&nbsp;🔸&nbsp;&nbsp;&nbsp; ";
+    }
+
+    // Repeat the message so there's always something on screen
+    track.innerHTML = [item, item, item].join(separator);
+
+    ticker.style.display = "block";
+
+    // Scroll at a steady speed whatever the length
+    const speed = 110;   // pixels per second
+    const seconds = Math.max(
+        15,
+        (track.scrollWidth + window.innerWidth) / speed
+    );
+
+    track.style.animationDuration = seconds + "s";
 }
 
 
