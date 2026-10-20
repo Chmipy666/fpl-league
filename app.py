@@ -5,6 +5,8 @@ import os
 import hmac
 import time
 import math
+import itertools
+import threading
 from datetime import datetime, timezone
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
@@ -2738,6 +2740,303 @@ def build_gw1_team_data(league_rows, finished_gw):
 
 
 # ============================================================
+# CHIP PLANNER (marquee)
+# Works out the best week for each chip from the live FPL fixtures.
+#   * First half  : next unfinished GW up to GW19 (CHIP_SET_SPLIT_GW)
+#   * Second half : GW20-38, switches on automatically after GW19
+#   * Doubles and blanks are read from the live fixture list each time
+# ============================================================
+
+CHIP_PLAN_TTL = 30 * 60      # seconds between refreshes from FPL
+
+_chip_plan_cache = {"t": 0.0, "data": None}
+_chip_plan_lock = threading.Lock()
+
+
+def _cp_mean(vals):
+    vals = list(vals)
+    return sum(vals) / len(vals) if vals else 0.0
+
+
+def _cp_top_mean(vals, n):
+    return _cp_mean(sorted(vals, reverse=True)[:n])
+
+
+def build_chip_plan(bootstrap, fixtures):
+    """Pure function: returns {status, half, window, picks, items}."""
+
+    events = bootstrap["events"]
+    teams = {t["id"]: t["short_name"] for t in bootstrap["teams"]}
+    last_gw = max(e["id"] for e in events)
+
+    unfinished = [e["id"] for e in events if not e.get("finished")]
+
+    if not unfinished:
+        return {"status": "season_over",
+                "items": ["🏁 Season complete - see you next year!"]}
+
+    start = min(unfinished)
+
+    if start <= CHIP_SET_SPLIT_GW:
+        half, last = 1, CHIP_SET_SPLIT_GW
+    else:
+        half, last = 2, last_gw
+
+    window = list(range(start, last + 1))
+
+    # fx[gw][team] = [(opponent, "H"/"A", ease 1-5)]  (5 = easiest)
+    fx = {g: {t: [] for t in teams} for g in range(1, last_gw + 1)}
+    scheduled = {g: 0 for g in range(1, last_gw + 1)}
+
+    for f in fixtures:
+        gw = f.get("event")
+
+        if not gw or gw not in fx:
+            continue
+
+        h, a = f["team_h"], f["team_a"]
+
+        fx[gw][h].append((teams[a], "H", 6 - f["team_h_difficulty"]))
+        fx[gw][a].append((teams[h], "A", 6 - f["team_a_difficulty"]))
+        scheduled[gw] += 1
+
+    def score(gw, t):
+        return sum(x[2] for x in fx[gw][t])
+
+    # only judge gameweeks whose fixtures have been published
+    window = [g for g in window if scheduled[g] > 0]
+
+    if not window:
+        return {"status": "no_fixtures", "half": half,
+                "items": ["📅 Fixtures for the next gameweeks aren't published yet"]}
+
+    doubles = {g: [teams[t] for t in teams if len(fx[g][t]) >= 2] for g in window}
+    blanks = {g: [teams[t] for t in teams if len(fx[g][t]) == 0] for g in window}
+
+    fh, bb, tc, wc = {}, {}, {}, {}
+    why = {"fh": {}, "bb": {}, "tc": {}, "wc": {}}
+
+    attackers = sorted(
+        [p for p in bootstrap["elements"] if p["element_type"] in (3, 4)],
+        key=lambda p: p.get("total_points", 0),
+        reverse=True
+    )[:20]
+
+    for g in window:
+
+        scores = [score(g, t) for t in teams]
+        nb, nd = len(blanks[g]), len(doubles[g])
+
+        # Free Hit: blanks first, then doubles, then best-v-average fixtures
+        fh[g] = 10 * nb + 3 * nd + (_cp_top_mean(scores, 8) - _cp_mean(scores))
+
+        if nb:
+            why["fh"][g] = (
+                f"{nb} team{'s' if nb != 1 else ''} blank "
+                f"({', '.join(blanks[g][:6])})"
+            )
+        elif nd:
+            why["fh"][g] = (
+                f"{nd} team{'s' if nd != 1 else ''} double "
+                f"({', '.join(doubles[g][:6])})"
+            )
+        else:
+            why["fh"][g] = "biggest gap between best and average fixtures"
+
+        # Bench Boost: doubles first, then fixture strength across a squad
+        extra = sum(max(0, len(fx[g][t]) - 1) for t in teams)
+        bb[g] = 10 * extra + _cp_top_mean(scores, 11)
+
+        why["bb"][g] = (
+            f"{nd} double{'s' if nd != 1 else ''} ({', '.join(doubles[g][:6])})"
+            if nd else "strong fixtures across the board"
+        )
+
+        # Triple Captain: best form-weighted fixture among top attackers
+        best = None
+
+        for p in attackers:
+            s = score(g, p["team"])
+            val = s * float(p.get("points_per_game") or 0)
+
+            if best is None or val > best[0]:
+                best = (val, p, s)
+
+        if best:
+            val, p, s = best
+            opps = " + ".join(
+                f"{o}({ha})" for o, ha, _ in fx[g][p["team"]]
+            ) or "blank"
+
+            tc[g] = val
+            why["tc"][g] = f"{p['web_name']} ({teams[p['team']]}) vs {opps}"
+
+    # Wildcard: size of the fixture swing over the next 4 gameweeks
+    def run_mean(t, lo, hi):
+        vals = [
+            x[2]
+            for g in range(max(1, lo), min(last_gw, hi) + 1)
+            for x in fx[g][t]
+        ]
+        return _cp_mean(vals) if vals else None
+
+    for g in window:
+
+        swings = []
+
+        for t in teams:
+            before = run_mean(t, g - 4, g - 1)
+            after = run_mean(t, g, g + 3)
+
+            if before is not None and after is not None:
+                swings.append((after - before, teams[t]))
+
+        if not swings:
+            continue
+
+        swings.sort(reverse=True)
+        ups, downs = swings[:5], swings[-5:]
+
+        disrupted = sum(
+            len(doubles.get(x, [])) + len(blanks.get(x, []))
+            for x in (g, g + 1, g + 2)
+        )
+
+        wc[g] = (
+            sum(s for s, _ in ups)
+            + sum(-s for s, _ in downs)
+            + 3 * disrupted
+        )
+
+        good = [n for s, n in ups[:3] if s > 0]
+
+        why["wc"][g] = (
+            f"{', '.join(good)} move onto good fixtures"
+            if good else "squad rebuild around the fixture run"
+        )
+
+    chips = {"fh": fh, "wc": wc, "bb": bb, "tc": tc}
+
+    # Only one chip can be played per gameweek: choose the best combination
+    # of different gameweeks.
+    ranked = {}
+
+    for c, d in chips.items():
+        mx = max(d.values()) if d and max(d.values()) > 0 else 1
+        ranked[c] = sorted(
+            ((v / mx, g) for g, v in d.items()), reverse=True
+        )[:4]
+
+    names = list(chips)
+    best_combo, best_total = None, -1
+
+    for combo in itertools.product(*(ranked[c] or [(0, None)] for c in names)):
+        gws = [g for _, g in combo if g is not None]
+
+        if len(window) >= 4 and len(set(gws)) != len(gws):
+            continue
+
+        total = sum(s for s, _ in combo)
+
+        if total > best_total:
+            best_combo, best_total = combo, total
+
+    pick = (
+        {c: best_combo[i][1] for i, c in enumerate(names)}
+        if best_combo else {}
+    )
+
+    def alt(c):
+        return [g for _, g in ranked[c] if g != pick.get(c)][:2]
+
+    half_label = "1st half" if half == 1 else "2nd half"
+
+    items = [
+        f"📅 CHIP PLANNER - {half_label} "
+        f"(GW{window[0]}-GW{window[-1]}), updates itself from live fixtures"
+    ]
+
+    label = {
+        "wc": "🔄 WILDCARD",
+        "fh": "🎯 FREE HIT",
+        "bb": "🪑 BENCH BOOST",
+        "tc": "👑 TRIPLE CAPTAIN"
+    }
+
+    for c in ("wc", "fh", "bb", "tc"):
+        g = pick.get(c)
+
+        if g is None:
+            continue
+
+        a = alt(c)
+        also = (
+            f" (also: {', '.join('GW' + str(x) for x in a)})" if a else ""
+        )
+
+        items.append(f"{label[c]}: GW{g} - {why[c].get(g, '')}{also}")
+
+    for g in window:
+        if doubles[g]:
+            items.append(f"⚡ DOUBLE GW{g}: {', '.join(doubles[g])}")
+        if blanks[g]:
+            items.append(f"🚫 BLANK GW{g}: {', '.join(blanks[g])}")
+
+    if half == 1:
+        items.append(
+            f"⏰ First-set chips expire at the GW{CHIP_SET_SPLIT_GW} "
+            "deadline - use them or lose them"
+        )
+
+    return {
+        "status": "ok",
+        "half": half,
+        "window": [window[0], window[-1]],
+        "picks": pick,
+        "items": items
+    }
+
+
+def get_chip_plan(force=False):
+    """Fetch + cache. Keeps the last good result if FPL can't be reached."""
+
+    with _chip_plan_lock:
+
+        fresh = (
+            _chip_plan_cache["data"] is not None
+            and time.time() - _chip_plan_cache["t"] < CHIP_PLAN_TTL
+        )
+
+        if fresh and not force:
+            return _chip_plan_cache["data"]
+
+        try:
+            data = build_chip_plan(
+                fpl_get("bootstrap-static/"),
+                fpl_get("fixtures/")
+            )
+            _chip_plan_cache["t"] = time.time()
+            _chip_plan_cache["data"] = data
+            return data
+
+        except Exception as error:
+
+            if _chip_plan_cache["data"] is not None:
+                return _chip_plan_cache["data"]
+
+            return {
+                "status": "error",
+                "items": ["⚠️ Chip planner can't reach FPL right now"],
+                "error": str(error)
+            }
+
+
+@app.route("/api/chip-planner")
+def api_chip_planner():
+    return jsonify(get_chip_plan())
+
+
+# ============================================================
 # ROUTES
 # ============================================================
 
@@ -3875,6 +4174,76 @@ button:hover {
     padding: 20px;
 }
 
+
+/* ==========================================================
+   CHIP PLANNER MARQUEE
+   ========================================================== */
+
+.chip-marquee {
+
+    overflow: hidden;
+
+    white-space: nowrap;
+
+    padding: 10px 0;
+
+    background: #0a241b;
+
+    border-bottom: 2px solid rgba(0, 255, 135, 0.35);
+
+    font-weight: 800;
+
+    font-size: 16px;
+
+    color: #FFFFFF;
+}
+
+.chip-marquee-track {
+
+    display: inline-block;
+
+    padding-left: 100%;
+
+    animation: chip-scroll 60s linear infinite;
+}
+
+.chip-marquee:hover .chip-marquee-track {
+    animation-play-state: paused;
+}
+
+.chip-marquee-item {
+
+    margin-right: 60px;
+}
+
+.chip-marquee-item.alert {
+
+    color: #ffd700;
+}
+
+@keyframes chip-scroll {
+
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-100%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .chip-marquee {
+        overflow-x: auto;
+    }
+
+    .chip-marquee-track {
+        padding-left: 20px;
+        animation: none;
+    }
+}
+
 </style>
 
 </head>
@@ -3907,6 +4276,12 @@ button:hover {
     <div class="ticker-track" id="lfcTickerTrack"></div>
 </div>
 
+
+<div class="chip-marquee" id="chipMarquee">
+    <div class="chip-marquee-track" id="chipMarqueeTrack">
+        <span class="chip-marquee-item">Loading chip planner...</span>
+    </div>
+</div>
 
 <div class="controls">
 
@@ -5761,6 +6136,55 @@ setInterval(tickDeadline, 1000);
 
 // Deadlines can move, so check again every 10 minutes
 setInterval(loadDeadline, 600000);
+
+
+/* ==========================================================
+   CHIP PLANNER MARQUEE
+   ========================================================== */
+
+async function loadChipPlanner() {
+
+    const track = document.getElementById("chipMarqueeTrack");
+
+    try {
+
+        const response = await fetch("/api/chip-planner");
+        const data = await response.json();
+
+        track.textContent = "";
+
+        let chars = 0;
+
+        (data.items || []).forEach(function (text) {
+
+            const span = document.createElement("span");
+
+            span.className = "chip-marquee-item"
+                + (/^(⚡|🚫)/.test(text) ? " alert" : "");
+
+            span.textContent = text;
+
+            track.appendChild(span);
+
+            chars += text.length;
+        });
+
+        // steady reading speed however much text there is
+        track.style.animationDuration =
+            Math.max(30, Math.round(chars * 0.22)) + "s";
+
+    } catch (error) {
+
+        console.error(error);
+
+        track.textContent = "Chip planner unavailable right now";
+    }
+}
+
+loadChipPlanner();
+
+// re-check every 30 minutes
+setInterval(loadChipPlanner, 30 * 60 * 1000);
 
 
 /* ==========================================================
