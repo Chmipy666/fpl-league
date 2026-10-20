@@ -102,6 +102,15 @@ HITS_PASSWORD = os.environ.get("FPL_HITS_PASSWORD", "Meg8tron123!!!")
 # First-set chips expire after the GW19 deadline.
 CHIP_SET_SPLIT_GW = 19
 
+# ---- Live scores ----
+# False = scores only count FINISHED gameweeks, using FPL's own final
+#         numbers, so they match the FPL website. The table, captains,
+#         bench and chip scores all move on once a gameweek has ended.
+# True  = also show the gameweek in progress, worked out live by this
+#         app from player points. Handy during matches, but it can be a
+#         point or two out until FPL finalises bonus points and auto-subs.
+SHOW_LIVE_SCORES = False
+
 # (name in the FPL data, short label, full name)
 CHIP_LIST = [
     ("wildcard", "WC", "Wildcard"),
@@ -159,13 +168,19 @@ def get_live_gameweek():
 
     events = data.get("events", [])
 
+    finished = [e["id"] for e in events if e.get("finished")]
+
+    last_finished = max(finished) if finished else 0
+
+    # Only show gameweeks that have ended (FPL's official numbers)
+    if not SHOW_LIVE_SCORES:
+        return last_finished
+
     for event in events:
         if event.get("is_current"):
             return event["id"]
 
-    finished = [e["id"] for e in events if e.get("finished")]
-
-    return max(finished) if finished else 0
+    return last_finished
 
 
 def get_league():
@@ -610,9 +625,16 @@ def get_league_rows(standings, gameweek, display_gw=None):
 
             use_history = bool(hist_row) and not in_progress
 
+            official = picks_data.get("entry_history") or {}
+
             if use_history:
                 gross = hist_row.get("points", 0)
                 gw_hit = hist_row.get("event_transfers_cost", 0)
+            elif not in_progress and "points" in official:
+                # Gameweek has ended but isn't in the history yet:
+                # use FPL's own figure instead of working it out here
+                gross = official.get("points", 0)
+                gw_hit = official.get("event_transfers_cost", 0)
             else:
                 picks = picks_data.get("picks", [])
 

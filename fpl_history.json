@@ -1387,10 +1387,10 @@
   },
   {
     "gameweek": 7,
-    "live": true,
-    "bench_gw": 6,
+    "live": false,
+    "bench_gw": 7,
     "league_name": "Curry Club Round 5 Phals alive",
-    "updated": "20 Oct 2026 10:08",
+    "updated": "20 Oct 2026 21:46",
     "chip_half": 1,
     "chip_split_gw": 19,
     "period": {
@@ -1401,8 +1401,106 @@
     },
     "players": [
       {
-        "entry": 7147625,
+        "entry": 3061020,
         "rank": 1,
+        "league": "championship",
+        "manager": "Daniel Brown",
+        "team": "FC DCB",
+        "total": 153,
+        "overall_total": 520,
+        "last_move": null,
+        "curries": 0,
+        "chips": [
+          {
+            "key": "wildcard",
+            "short": "WC",
+            "name": "Wildcard",
+            "available": false,
+            "used_gw": 6
+          },
+          {
+            "key": "freehit",
+            "short": "FH",
+            "name": "Free Hit",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "bboost",
+            "short": "BB",
+            "name": "Bench Boost",
+            "available": true,
+            "used_gw": null
+          },
+          {
+            "key": "3xc",
+            "short": "TC",
+            "name": "Triple Captain",
+            "available": false,
+            "used_gw": 7
+          }
+        ],
+        "hit_cost": 0,
+        "gw_points": 79,
+        "captain": "Haaland",
+        "captain_points": 39,
+        "previous_rank": 1,
+        "movement": 0,
+        "bench_total": 67,
+        "bench_last": 6,
+        "bench_by_gw": [
+          {
+            "gw": 1,
+            "points": 7
+          },
+          {
+            "gw": 2,
+            "points": 16
+          },
+          {
+            "gw": 3,
+            "points": 8
+          },
+          {
+            "gw": 4,
+            "points": 2
+          },
+          {
+            "gw": 5,
+            "points": 19
+          },
+          {
+            "gw": 6,
+            "points": 9
+          },
+          {
+            "gw": 7,
+            "points": 6
+          }
+        ],
+        "chip_results": {
+          "wildcard": [
+            {
+              "gw": 6,
+              "live": false,
+              "points": 74
+            }
+          ],
+          "freehit": [],
+          "bboost": [],
+          "3xc": [
+            {
+              "gw": 7,
+              "live": false,
+              "player": "Haaland",
+              "points": 39
+            }
+          ]
+        }
+      },
+      {
+        "entry": 7147625,
+        "rank": 2,
         "league": "championship",
         "manager": "David Kwong",
         "team": "ABCDE FC",
@@ -1444,10 +1542,10 @@
         "gw_points": 79,
         "captain": "Haaland",
         "captain_points": 26,
-        "previous_rank": 1,
+        "previous_rank": 2,
         "movement": 0,
-        "bench_total": 82,
-        "bench_last": 8,
+        "bench_total": 87,
+        "bench_last": 5,
         "bench_by_gw": [
           {
             "gw": 1,
@@ -1472,6 +1570,10 @@
           {
             "gw": 6,
             "points": 8
+          },
+          {
+            "gw": 7,
+            "points": 5
           }
         ],
         "chip_results": {
@@ -1484,100 +1586,6 @@
               "live": false,
               "player": "Haaland",
               "points": 27
-            }
-          ]
-        }
-      },
-      {
-        "entry": 3061020,
-        "rank": 2,
-        "league": "championship",
-        "manager": "Daniel Brown",
-        "team": "FC DCB",
-        "total": 149,
-        "overall_total": 516,
-        "last_move": null,
-        "curries": 0,
-        "chips": [
-          {
-            "key": "wildcard",
-            "short": "WC",
-            "name": "Wildcard",
-            "available": false,
-            "used_gw": 6
-          },
-          {
-            "key": "freehit",
-            "short": "FH",
-            "name": "Free Hit",
-            "available": true,
-            "used_gw": null
-          },
-          {
-            "key": "bboost",
-            "short": "BB",
-            "name": "Bench Boost",
-            "available": true,
-            "used_gw": null
-          },
-          {
-            "key": "3xc",
-            "short": "TC",
-            "name": "Triple Captain",
-            "available": false,
-            "used_gw": 7
-          }
-        ],
-        "hit_cost": 0,
-        "gw_points": 75,
-        "captain": "Haaland",
-        "captain_points": 39,
-        "previous_rank": 2,
-        "movement": 0,
-        "bench_total": 61,
-        "bench_last": 9,
-        "bench_by_gw": [
-          {
-            "gw": 1,
-            "points": 7
-          },
-          {
-            "gw": 2,
-            "points": 16
-          },
-          {
-            "gw": 3,
-            "points": 8
-          },
-          {
-            "gw": 4,
-            "points": 2
-          },
-          {
-            "gw": 5,
-            "points": 19
-          },
-          {
-            "gw": 6,
-            "points": 9
-          }
-        ],
-        "chip_results": {
-          "wildcard": [
-            {
-              "gw": 6,
-              "live": false,
-              "points": 74
-            }
-          ],
-          "freehit": [],
-          "bboost": [],
-          "3xc": [
-            {
-              "gw": 7,
-              "live": true,
-              "player": "Haaland",
-              "points": 39
             }
           ]
         }
@@ -1628,8 +1636,8 @@
         "captain_points": 26,
         "previous_rank": 3,
         "movement": 0,
-        "bench_total": 44,
-        "bench_last": 6,
+        "bench_total": 49,
+        "bench_last": 5,
         "bench_by_gw": [
           {
             "gw": 2,
@@ -1650,6 +1658,10 @@
           {
             "gw": 6,
             "points": 6
+          },
+          {
+            "gw": 7,
+            "points": 5
           }
         ],
         "chip_results": {
@@ -1684,8 +1696,8 @@
         "league": "championship",
         "manager": "James Hedley",
         "team": "Snakes&Volleys",
-        "total": 115,
-        "overall_total": 476,
+        "total": 119,
+        "overall_total": 480,
         "last_move": null,
         "curries": 0,
         "chips": [
@@ -1719,13 +1731,13 @@
           }
         ],
         "hit_cost": 0,
-        "gw_points": 68,
+        "gw_points": 72,
         "captain": "Haaland",
         "captain_points": 26,
         "previous_rank": 4,
         "movement": 0,
         "bench_total": 25,
-        "bench_last": 4,
+        "bench_last": 0,
         "bench_by_gw": [
           {
             "gw": 1,
@@ -1750,6 +1762,10 @@
           {
             "gw": 6,
             "points": 4
+          },
+          {
+            "gw": 7,
+            "points": 0
           }
         ],
         "chip_results": {
@@ -1765,8 +1781,8 @@
         "league": "championship",
         "manager": "Sean Bottamley",
         "team": "Livin' Saliba Loca",
-        "total": 113,
-        "overall_total": 469,
+        "total": 116,
+        "overall_total": 472,
         "last_move": null,
         "curries": 0,
         "chips": [
@@ -1800,13 +1816,13 @@
           }
         ],
         "hit_cost": 0,
-        "gw_points": 51,
+        "gw_points": 54,
         "captain": "Haaland",
         "captain_points": 26,
         "previous_rank": 5,
         "movement": 0,
         "bench_total": 56,
-        "bench_last": 7,
+        "bench_last": 0,
         "bench_by_gw": [
           {
             "gw": 1,
@@ -1831,6 +1847,10 @@
           {
             "gw": 6,
             "points": 7
+          },
+          {
+            "gw": 7,
+            "points": 0
           }
         ],
         "chip_results": {
@@ -1900,7 +1920,7 @@
         "previous_rank": 1,
         "movement": 0,
         "bench_total": 55,
-        "bench_last": 16,
+        "bench_last": 0,
         "bench_by_gw": [
           {
             "gw": 1,
@@ -1939,7 +1959,7 @@
           "bboost": [
             {
               "gw": 7,
-              "live": true,
+              "live": false,
               "points": 79
             }
           ],
@@ -1999,8 +2019,8 @@
         "captain_points": 26,
         "previous_rank": 2,
         "movement": 0,
-        "bench_total": 41,
-        "bench_last": 11,
+        "bench_total": 44,
+        "bench_last": 3,
         "bench_by_gw": [
           {
             "gw": 1,
@@ -2025,13 +2045,17 @@
           {
             "gw": 6,
             "points": 11
+          },
+          {
+            "gw": 7,
+            "points": 3
           }
         ],
         "chip_results": {
           "wildcard": [
             {
               "gw": 7,
-              "live": true,
+              "live": false,
               "points": 61
             }
           ],
@@ -2092,8 +2116,8 @@
         "captain_points": 26,
         "previous_rank": 3,
         "movement": 0,
-        "bench_total": 54,
-        "bench_last": 8,
+        "bench_total": 57,
+        "bench_last": 3,
         "bench_by_gw": [
           {
             "gw": 1,
@@ -2114,6 +2138,10 @@
           {
             "gw": 6,
             "points": 8
+          },
+          {
+            "gw": 7,
+            "points": 3
           }
         ],
         "chip_results": {
@@ -2141,8 +2169,8 @@
         "league": "challenger",
         "manager": "shaun leigh",
         "team": "shaun's Team",
-        "total": 104,
-        "overall_total": 389,
+        "total": 106,
+        "overall_total": 391,
         "last_move": null,
         "curries": 0,
         "chips": [
@@ -2176,13 +2204,13 @@
           }
         ],
         "hit_cost": 0,
-        "gw_points": 64,
+        "gw_points": 66,
         "captain": "Gro\u00df",
         "captain_points": 10,
         "previous_rank": 4,
         "movement": 0,
-        "bench_total": 56,
-        "bench_last": 18,
+        "bench_total": 63,
+        "bench_last": 7,
         "bench_by_gw": [
           {
             "gw": 1,
@@ -2207,6 +2235,10 @@
           {
             "gw": 6,
             "points": 18
+          },
+          {
+            "gw": 7,
+            "points": 7
           }
         ],
         "chip_results": {
@@ -2228,8 +2260,8 @@
         "league": "challenger",
         "manager": "Andy Potter",
         "team": "Bhunarmy",
-        "total": 77,
-        "overall_total": 415,
+        "total": 78,
+        "overall_total": 416,
         "last_move": null,
         "curries": 0,
         "chips": [
@@ -2263,13 +2295,13 @@
           }
         ],
         "hit_cost": 0,
-        "gw_points": 33,
+        "gw_points": 34,
         "captain": "\u00d8degaard",
         "captain_points": 6,
         "previous_rank": 5,
         "movement": 0,
-        "bench_total": 48,
-        "bench_last": 6,
+        "bench_total": 61,
+        "bench_last": 13,
         "bench_by_gw": [
           {
             "gw": 1,
@@ -2294,6 +2326,10 @@
           {
             "gw": 6,
             "points": 6
+          },
+          {
+            "gw": 7,
+            "points": 13
           }
         ],
         "chip_results": {
