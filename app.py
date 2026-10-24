@@ -109,7 +109,7 @@ CHIP_SET_SPLIT_GW = 19
 # True  = also show the gameweek in progress, worked out live by this
 #         app from player points. Handy during matches, but it can be a
 #         point or two out until FPL finalises bonus points and auto-subs.
-SHOW_LIVE_SCORES = False
+SHOW_LIVE_SCORES = True
 
 # (name in the FPL data, short label, full name)
 CHIP_LIST = [
@@ -144,43 +144,159 @@ def fpl_get(endpoint):
     return response.json()
 
 
-def get_current_gameweek():
-    """Return the most recently finished Gameweek."""
+def last_complete_gameweek(data):
+    """Last gameweek that is over.
 
-    data = fpl_get("bootstrap-static/")
-
-    finished_events = [
-        event["id"]
-        for event in data.get("events", [])
-        if event.get("finished")
-    ]
-
-    if not finished_events:
-        return 0
-
-    return max(finished_events)
-
-
-def get_live_gameweek():
-    """Return the gameweek being played now (or the last finished one)."""
-
-    data = fpl_get("bootstrap-static/")
+    FPL only sets a gameweek's own "finished" flag some time after the
+    last match. So for each gameweek after the last flagged one that has
+    already started, if every one of its fixtures is finished, count it
+    as complete straight away.
+    """
 
     events = data.get("events", [])
 
-    finished = [e["id"] for e in events if e.get("finished")]
+    done = max(
+        (e["id"] for e in events if e.get("finished")),
+        default=0
+    )
 
-    last_finished = max(finished) if finished else 0
+    now = datetime.now(timezone.utc)
 
-    # Only show gameweeks that have ended (FPL's official numbers)
+    while True:
+
+        candidate = next(
+            (e for e in events if e["id"] == done + 1),
+            None
+        )
+
+        if not candidate:
+            break
+
+        started = bool(candidate.get("is_current"))
+
+        deadline = candidate.get("deadline_time")
+
+        if deadline and not started:
+            try:
+                started = datetime.fromisoformat(
+                    deadline.replace("Z", "+00:00")
+                ) <= now
+            except Exception:
+                pass
+
+        if not started:
+            break
+
+        try:
+            fixtures = fpl_get(f"fixtures/?event={candidate['id']}")
+        except Exception:
+            break
+
+        if fixtures and all(f.get("finished") for f in fixtures):
+            done = candidate["id"]
+        else:
+            break
+
+    return done
+
+
+@app.route("/api/debug-gw")
+def api_debug_gw():
+    """Shows what FPL says about the gameweeks (to find why one is stuck)."""
+
+    try:
+        data = fpl_get("bootstrap-static/")
+        events = data.get("events", [])
+
+        last_flagged = max(
+            (e["id"] for e in events if e.get("finished")),
+            default=0
+        )
+
+        report = {
+            "last_flagged_finished_by_fpl": last_flagged,
+            "this_app_counts_as_complete": last_complete_gameweek(data),
+            "show_live_scores": SHOW_LIVE_SCORES,
+            "gameweeks": []
+        }
+
+        for e in events:
+            if last_flagged - 1 <= e["id"] <= last_flagged + 2:
+                info = {
+                    "id": e["id"],
+                    "finished": e.get("finished"),
+                    "is_current": e.get("is_current"),
+                    "is_next": e.get("is_next"),
+                    "data_checked": e.get("data_checked"),
+                    "deadline_time": e.get("deadline_time")
+                }
+
+                if e["id"] == last_flagged + 1:
+                    fixtures = fpl_get(f"fixtures/?event={e['id']}")
+                    info["fixtures_total"] = len(fixtures)
+                    info["fixtures_not_finished"] = [
+                        {
+                            "id": f.get("id"),
+                            "kickoff": f.get("kickoff_time"),
+                            "started": f.get("started"),
+                            "finished_provisional":
+                                f.get("finished_provisional"),
+                            "finished": f.get("finished")
+                        }
+                        for f in fixtures if not f.get("finished")
+                    ]
+
+                report["gameweeks"].append(info)
+
+        return jsonify(report)
+
+    except Exception as error:
+        return jsonify({"error": str(error)}), 500
+
+
+def get_current_gameweek():
+    """Return the most recently finished Gameweek."""
+
+    return last_complete_gameweek(fpl_get("bootstrap-static/"))
+
+
+def get_live_gameweek():
+    """Return the gameweek to show.
+
+    With SHOW_LIVE_SCORES on, the dashboard switches to a new gameweek
+    the moment its deadline has passed (points start at 0 and build up
+    as the games are played). Otherwise it shows the last finished one.
+    """
+
+    data = fpl_get("bootstrap-static/")
+
+    last_finished = last_complete_gameweek(data)
+
     if not SHOW_LIVE_SCORES:
         return last_finished
 
-    for event in events:
-        if event.get("is_current"):
-            return event["id"]
+    now = datetime.now(timezone.utc)
 
-    return last_finished
+    latest = last_finished
+
+    for event in data.get("events", []):
+
+        started = bool(event.get("is_current"))
+
+        deadline = event.get("deadline_time")
+
+        if deadline and not started:
+            try:
+                started = datetime.fromisoformat(
+                    deadline.replace("Z", "+00:00")
+                ) <= now
+            except Exception:
+                pass
+
+        if started and event["id"] > latest:
+            latest = event["id"]
+
+    return latest
 
 
 def get_league():
@@ -1743,19 +1859,23 @@ def create_whatsapp_graphic(snapshot):
             )
 
             # Live gameweek points (green)
-            gw_text = f"+{player['gw_points']}"
+            gw_value = player["gw_points"]
+
+            gw_text = f"+{gw_value}" if gw_value >= 0 else str(gw_value)
+
+            gw_colour = green if gw_value >= 0 else red
 
             draw.text(
                 (x + w - 115, row_y + 18),
                 gw_text,
-                fill=green,
+                fill=gw_colour,
                 font=points_font
             )
 
             draw.text(
                 (x + w - 115, row_y + 52),
                 gw_label,
-                fill=green,
+                fill=gw_colour,
                 font=small_font
             )
 
@@ -4512,6 +4632,11 @@ button:hover {
 let currentData = null;
 let lastHitsData = null;
 
+// "+12" for a normal score, "-4" (no plus sign) when it's negative
+function gwSigned(n) {
+    return n < 0 ? String(n) : "+" + n;
+}
+
 
 /* ==========================================================
    LOAD CURRENT DATA
@@ -4822,6 +4947,11 @@ function renderPlayers(
             }
 
 
+            const gwText = gwSigned(player.gw_points);
+
+            const gwColour =
+                player.gw_points < 0 ? "#ff4d6d" : "#00ff87";
+
             row.innerHTML = `
 
                 <div
@@ -4869,9 +4999,9 @@ function renderPlayers(
 
                 </div>
 
-                <div class="gw">
+                <div class="gw" style="color: ${gwColour};">
 
-                    +${player.gw_points}
+                    ${gwText}
                     <br>
 
                     <small>
@@ -4929,7 +5059,7 @@ function renderCaptains(players) {
             </div>
 
             <div class="captain-team">
-                Team GW points: +${player.gw_points}
+                Team GW points: ${gwSigned(player.gw_points)}
             </div>
         `;
 
@@ -5609,7 +5739,7 @@ function downloadCaptainsPng() {
             ctx.fillText("captain pts", x + colW - 22, y + 78);
 
             ctx.fillStyle = green;
-            ctx.fillText(`Team GW: +${p.gw_points}`, x + colW - 22, y + 100);
+            ctx.fillText(`Team GW: ${gwSigned(p.gw_points)}`, x + colW - 22, y + 100);
         });
     }
 

@@ -1,5 +1,5 @@
 {
-  "updated": "20 Oct 2026 21:46",
+  "updated": "23 Oct 2026 22:26",
   "managers": {
     "3061020": {
       "manager": "Daniel Brown",
@@ -44,9 +44,14 @@
     "7009706": {
       "manager": "Darren Cartwright",
       "team": "Phoenix Cartwrights",
-      "hits": [],
-      "total_points": 0,
-      "total_hits": 0
+      "hits": [
+        {
+          "gw": 8,
+          "points": 4
+        }
+      ],
+      "total_points": 4,
+      "total_hits": 1
     },
     "3581128": {
       "manager": "Jordan Gill",
