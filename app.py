@@ -2,7 +2,6 @@ from flask import Flask, jsonify, render_template_string, send_file, request
 import requests
 import json
 import os
-import hmac
 import time
 import math
 import itertools
@@ -55,7 +54,23 @@ RESET_POINTS_EACH_PERIOD = True
 # False = only the winners of the most recent period show a curry
 CURRIES_STACK = True
 
-# ---- Hits tracker (password protected) ----
+
+# ---- Curry table ----
+# Who owes the period winner a curry?
+# "last" = the manager in last place in that league for the period
+# "all"  = everyone else in that league
+CURRY_OWED_BY = "last"
+
+# Show curries for the periods BEFORE the game started (GW1-5, 6-10...)
+# using the leagues as they were first locked in
+BACKDATE_CURRIES = True
+
+# Gameweeks up to and including this one were played as ONE league
+# (everybody in a single table). After it the game split into
+# Championship (top 5) and Challenger (6th-10th).
+SINGLE_LEAGUE_UNTIL_GW = 5
+
+# ---- Hits tracker ----
 # Every transfer hit (-4, -8 ...) taken this season is saved here.
 HITS_FILE = "fpl_hits.json"
 
@@ -65,17 +80,6 @@ PARADE_FILE = "fpl_hits_parade.json"
 
 # "What if nobody had ever made a transfer" table (GW1 team kept all season)
 GW1_FILE = "fpl_gw1_team.json"
-
-# Liverpool fitness card.  FPL lists every registered player, including
-# youngsters, so "first team" = costs at least this much (in tenths of
-# a million, 45 = 4.5m) OR has played at least this many minutes.
-LIVERPOOL_TEAM_NAME = "Liverpool"
-FIRST_TEAM_MIN_PRICE = 45
-FIRST_TEAM_MIN_MINUTES = 270
-
-# Players to leave out (FPL "web names", e.g. ["Kelleher"]) - for anyone
-# who isn't really first team or has left.
-LIVERPOOL_IGNORE = []
 
 # A transfer that costs a hit is judged on: points in - points out - 4.
 # Set to False to judge on the raw points only (in v out).
@@ -92,10 +96,6 @@ BENCH_FILE = "fpl_bench.json"
 # Triple Captain results (which player was captained and what they scored),
 # saved once per finished gameweek.
 CHIPS_FILE = "fpl_chips.json"
-
-# Password for the HITS TRACKER button.
-# (Or set an environment variable called FPL_HITS_PASSWORD instead.)
-HITS_PASSWORD = os.environ.get("FPL_HITS_PASSWORD", "Meg8tron123!!!")
 
 # ---- Chips ----
 # Each chip comes in two sets: one for GW1-19 and one for GW20-38.
@@ -198,6 +198,136 @@ def last_complete_gameweek(data):
             break
 
     return done
+
+
+@app.route("/api/debug-scores")
+def api_debug_scores():
+    """Compares this app's scores with FPL's own numbers, per manager.
+
+    Open /api/debug-scores for a table, or /api/debug-scores?format=json
+    for the raw data.
+    """
+
+    try:
+        league_name, standings = get_league()
+
+        finished_gw = get_current_gameweek()
+        gw = get_live_gameweek()
+
+        state = get_league_state(standings, finished_gw)
+
+        names = {row["entry"]: row for row in standings}
+
+        ctx = get_live_context(gw)
+
+        managers = []
+
+        for entry in state["assignments"]:
+
+            entry = int(entry)
+
+            picks = get_manager_picks(entry, gw)
+            history = get_manager_history(entry)
+
+            hist_row = next(
+                (g for g in history.get("current", [])
+                 if g.get("event") == gw),
+                None
+            )
+
+            official = picks.get("entry_history") or {}
+
+            calc = score_live_team(picks, ctx)
+
+            hit = official.get("event_transfers_cost") or 0
+
+            managers.append({
+                "manager": names.get(entry, {}).get("player_name"),
+                "team": names.get(entry, {}).get("entry_name"),
+                "this_app_before_hit": calc["gross"] if calc else None,
+                "fpl_picks_before_hit": official.get("points"),
+                "fpl_history_before_hit":
+                    hist_row.get("points") if hist_row else None,
+                "fpl_league_table_gw": names.get(entry, {}).get("event_total"),
+                "hit": hit,
+                "this_app_after_hit":
+                    (calc["gross"] - hit) if calc else None,
+                "active_chip": picks.get("active_chip"),
+                "auto_subs_fpl_applied":
+                    len(picks.get("automatic_subs", []))
+            })
+
+        result = {
+            "last_finished_gameweek": finished_gw,
+            "gameweek_shown": gw,
+            "managers": managers
+        }
+
+        if request.args.get("format") == "json":
+            return jsonify(result)
+
+        def cell(value):
+            return "-" if value is None else str(value)
+
+        rows = ""
+
+        for m in managers:
+
+            rows += (
+                "<tr>"
+                f"<td>{m['manager']}<br><small>{m['team']}</small></td>"
+                f"<td><b>{cell(m['this_app_after_hit'])}</b></td>"
+                f"<td>{cell(m['this_app_before_hit'])}</td>"
+                f"<td>{cell(m['fpl_history_before_hit'])}</td>"
+                f"<td>{cell(m['fpl_picks_before_hit'])}</td>"
+                f"<td>{cell(m['fpl_league_table_gw'])}</td>"
+                f"<td>{m['hit']}</td>"
+                f"<td>{cell(m['active_chip'])}</td>"
+                f"<td>{m['auto_subs_fpl_applied']}</td>"
+                "</tr>"
+            )
+
+        page = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPL score check</title>
+<style>
+body {{ font-family: Arial, sans-serif; background: #061a14;
+        color: #fff; padding: 20px; }}
+table {{ border-collapse: collapse; width: 100%; }}
+th, td {{ border: 1px solid #1c4a38; padding: 8px; text-align: left;
+          font-size: 14px; }}
+th {{ background: #0d3024; color: #00ff87; }}
+small {{ color: #9ab3a8; }}
+p {{ color: #a9c5b9; max-width: 900px; }}
+a {{ color: #00ff87; }}
+</style></head><body>
+<h2>FPL score check - gameweek {gw}</h2>
+<p>Last gameweek FPL counts as finished: {finished_gw}.
+Compare the first column with your FPL mini-league page. The other
+columns are FPL's own numbers for the same gameweek (they can lag
+behind while games are being played).</p>
+<div style="overflow-x:auto"><table>
+<tr>
+<th>Manager</th>
+<th>This app (after hit)</th>
+<th>This app (before hit)</th>
+<th>FPL history (before hit)</th>
+<th>FPL picks (before hit)</th>
+<th>FPL league table GW</th>
+<th>Hit</th>
+<th>Chip</th>
+<th>FPL auto-subs</th>
+</tr>
+{rows}
+</table></div>
+<p><a href="/">Back to the dashboard</a></p>
+</body></html>"""
+
+        return page
+
+    except Exception as error:
+        return jsonify({"error": str(error)}), 500
 
 
 @app.route("/api/debug-gw")
@@ -382,6 +512,169 @@ def get_live_points(gameweek):
         }
     except Exception:
         return {}
+
+
+def get_live_context(gameweek):
+    """Everything needed to score a team live, the way the FPL site does.
+
+    stats = each player's points and minutes so far
+    pos   = each player's position (1 GK, 2 DEF, 3 MID, 4 FWD)
+    team  = each player's club
+    done  = clubs whose fixtures in this gameweek have all finished, so a
+            player on 0 minutes there is definitely not playing
+    """
+
+    stats = get_live_stats(gameweek)
+
+    pos = {}
+    team = {}
+    all_teams = set()
+
+    try:
+        boot = fpl_get("bootstrap-static/")
+
+        for element in boot.get("elements", []):
+            pos[element["id"]] = element.get("element_type", 3)
+            team[element["id"]] = element.get("team")
+
+        all_teams = {t["id"] for t in boot.get("teams", [])}
+
+    except Exception:
+        pass
+
+    done = set()
+
+    try:
+        fixtures = fpl_get(f"fixtures/?event={gameweek}")
+
+        pending = set()
+
+        for f in fixtures:
+            if not (f.get("finished") or f.get("finished_provisional")):
+                pending.add(f.get("team_h"))
+                pending.add(f.get("team_a"))
+
+        # Clubs with no fixture this week count as done as well
+        done = {t for t in all_teams if t not in pending}
+
+    except Exception:
+        done = set()
+
+    return {"stats": stats, "pos": pos, "team": team, "done": done}
+
+
+def score_live_team(picks_data, ctx):
+    """A manager's gameweek points BEFORE any transfer hit, worked out the
+    way the FPL website does it while games are being played:
+
+    - Starting XI and bench order come from the manager's picks
+    - Captain gets x2 (x3 on Triple Captain); the vice-captain takes over
+      if the captain's games are finished and he didn't play
+    - Automatic subs happen for starters on 0 minutes whose games are
+      over (goalkeeper for goalkeeper, formation must stay legal)
+    - Bench Boost counts all 15 players
+
+    Returns {"gross", "captain", "captain_points"} or None if there are
+    no picks.
+    """
+
+    picks = sorted(
+        picks_data.get("picks", []),
+        key=lambda p: p.get("position", 0)
+    )
+
+    if not picks:
+        return None
+
+    stats = ctx["stats"]
+    pos = ctx["pos"]
+    team = ctx["team"]
+    done = ctx["done"]
+
+    chip = picks_data.get("active_chip")
+
+    def minutes(element):
+        return stats.get(element, {}).get("minutes", 0)
+
+    def points(element):
+        return stats.get(element, {}).get("points", 0)
+
+    def out_for_good(element):
+        return minutes(element) == 0 and team.get(element) in done
+
+    xi = [p["element"] for p in picks if p["position"] <= 11]
+    bench = [p["element"] for p in picks if p["position"] > 11]
+
+    def formation_ok(players):
+        counts = {1: 0, 2: 0, 3: 0, 4: 0}
+
+        for element in players:
+            counts[pos.get(element, 3)] += 1
+
+        return (
+            counts[1] == 1 and counts[2] >= 3
+            and counts[3] >= 2 and counts[4] >= 1
+        )
+
+    if chip == "bboost":
+
+        xi = xi + bench
+
+    else:
+
+        used = set()
+
+        for starter in list(xi):
+
+            if not out_for_good(starter):
+                continue
+
+            for sub in bench:
+
+                if sub in used or minutes(sub) == 0:
+                    continue
+
+                starter_gk = pos.get(starter, 3) == 1
+                sub_gk = pos.get(sub, 3) == 1
+
+                if starter_gk != sub_gk:
+                    continue
+
+                trial = [sub if x == starter else x for x in xi]
+
+                if not starter_gk and not formation_ok(trial):
+                    continue
+
+                xi[xi.index(starter)] = sub
+                used.add(sub)
+                break
+
+    captain = next(
+        (p["element"] for p in picks if p.get("is_captain")), None
+    )
+    vice = next(
+        (p["element"] for p in picks if p.get("is_vice_captain")), None
+    )
+
+    multiplier = 3 if chip == "3xc" else 2
+
+    effective = captain
+
+    if captain is not None and out_for_good(captain) and vice is not None:
+        effective = vice
+
+    total = sum(points(element) for element in xi)
+
+    if effective is not None and effective in xi:
+        total += points(effective) * (multiplier - 1)
+
+    return {
+        "gross": total,
+        "captain": effective,
+        "captain_points": (
+            points(effective) * multiplier if effective is not None else 0
+        )
+    }
 
 
 def get_previous_snapshot():
@@ -693,6 +986,7 @@ def get_league_rows(standings, gameweek, display_gw=None):
     in_progress = bool(display_gw) and display_gw > gameweek
 
     live_points = get_live_points(live_gw) if display_gw else {}
+    ctx = get_live_context(live_gw) if display_gw else None
 
     last_swap = state["swaps"][-1] if state["swaps"] else None
 
@@ -725,6 +1019,7 @@ def get_league_rows(standings, gameweek, display_gw=None):
 
         # ---- Gameweek points (live if FPL hasn't finalised them) ----
         picks_data = {"picks": []}
+        calc = None
         gw_points = 0
         gw_hit = 0
         extra = 0     # live points not yet in FPL's history
@@ -732,6 +1027,8 @@ def get_league_rows(standings, gameweek, display_gw=None):
         if display_gw:
 
             picks_data = get_manager_picks(entry, live_gw)
+
+            calc = score_live_team(picks_data, ctx) if ctx else None
 
             hist_row = next(
                 (g for g in history.get("current", [])
@@ -746,7 +1043,7 @@ def get_league_rows(standings, gameweek, display_gw=None):
             if use_history:
                 gross = hist_row.get("points", 0)
                 gw_hit = hist_row.get("event_transfers_cost", 0)
-            elif not in_progress and "points" in official:
+            elif not in_progress and calc is None and "points" in official:
                 # Gameweek has ended but isn't in the history yet:
                 # use FPL's own figure instead of working it out here
                 gross = official.get("points", 0)
@@ -776,6 +1073,11 @@ def get_league_rows(standings, gameweek, display_gw=None):
                     "event_transfers_cost", 0
                 )
 
+                # Better live figure: includes auto-subs and the
+                # vice-captain rule, like the FPL website
+                if calc is not None:
+                    gross = calc["gross"]
+
             # Green number = gameweek points AFTER the transfer hit
             gw_points = gross - gw_hit
 
@@ -792,6 +1094,7 @@ def get_league_rows(standings, gameweek, display_gw=None):
             "gw_points": gw_points,
             "gw_hit": gw_hit,
             "picks": picks_data,
+            "live_calc": calc,
             "last_move": last_move,
             "curries": curries
         })
@@ -1151,6 +1454,15 @@ def build_snapshot():
                     * pick.get("multiplier", 2)
                 )
                 break
+
+        # The vice-captain takes over if the captain didn't play
+        live_calc = row.get("live_calc")
+
+        if live_calc and live_calc.get("captain") is not None:
+            captain_name = player_names.get(
+                live_calc["captain"], "Unknown"
+            )
+            captain_points = live_calc["captain_points"]
 
         # ----------------------------------------------------
         # Previous position (within the same league)
@@ -2882,6 +3194,284 @@ def build_gw1_team_data(league_rows, finished_gw):
 
 
 # ============================================================
+# CURRY TABLE (every gameweek, period winners, who owes a curry)
+# ============================================================
+
+def build_curry_table():
+    """Every manager's points for every gameweek so far, plus the result
+    of each 5-week period (who won the curry and who owes one),
+    including backdated periods from before the game started."""
+
+    league_name, standings = get_league()
+
+    finished_gw = get_current_gameweek()
+    live_gw = get_live_gameweek()
+
+    rows, state = get_league_rows(standings, finished_gw, live_gw)
+
+    by_row = {r["entry"]: r for r in rows}
+    histories = {e: r["history"] for e, r in by_row.items()}
+
+    swaps = state.get("swaps", [])
+
+    # Who was in which league DURING each period: start from today's
+    # leagues and undo the swaps one by one, newest first.
+    work = dict(state["assignments"])
+    before = [None] * len(swaps)
+
+    for k in range(len(swaps) - 1, -1, -1):
+        for e in swaps[k].get("relegated", []):
+            work[str(e)] = "championship"
+        for e in swaps[k].get("promoted", []):
+            work[str(e)] = "challenger"
+        before[k] = dict(work)
+
+    # Leagues as they were when first locked in (used for backdating)
+    initial = dict(work)
+
+    label = {
+        "championship": "Championship",
+        "challenger": "Challenger",
+        "all": "Single league"
+    }
+
+    # Emoji that shows WHICH league a winner / loser belongs to, so you can
+    # see who owes whom: a loser only owes the winner with the same emoji.
+    emoji = {
+        "championship": "🏆",
+        "challenger": "⚔️",
+        "all": "⚽"
+    }
+
+    won = {e: 0 for e in by_row}
+    owed = {e: 0 for e in by_row}
+
+    def pack(e, pts, place):
+        return {
+            "entry": e,
+            "manager": by_row[e].get("player_name", "Unknown"),
+            "points": pts,
+            "place": place
+        }
+
+    def settle(text, number, first, last, membership, saved_winners,
+               backdated, single=False):
+        """Work out one finished period: winner and who owes a curry.
+
+        single=True means everybody was in ONE league (before the split)."""
+
+        begin = basis_start(first)
+
+        period = {
+            "label": text,
+            "number": number,
+            "first": first,
+            "last": last,
+            "complete": True,
+            "backdated": backdated,
+            "single": single,
+            "by_entry": {},
+            "leagues": []
+        }
+
+        for league in (["all"] if single else ["championship", "challenger"]):
+
+            if single:
+                members = list(by_row)
+            else:
+                members = [
+                    e for e in by_row if membership.get(str(e)) == league
+                ]
+
+            if not members:
+                continue
+
+            winners = [e for e in saved_winners if e in members]
+
+            def pts_of(e):
+                return points_between(histories[e], begin, last)
+
+            # A saved winner always comes first, so this matches the
+            # curry icon on the main dashboard
+            ranked = sorted(
+                members,
+                key=lambda e: (
+                    0 if e in winners else 1,
+                    -pts_of(e),
+                    -cumulative_points(histories[e], last)
+                )
+            )
+
+            winner = ranked[0]
+            owers = []
+
+            if len(ranked) >= 2:
+                owers = ranked[1:] if CURRY_OWED_BY == "all" else [ranked[-1]]
+
+            won[winner] += 1
+
+            for e in owers:
+                owed[e] += 1
+
+            for place, e in enumerate(ranked, start=1):
+                period["by_entry"][str(e)] = {
+                    "points": pts_of(e),
+                    "league": league,
+                    "emoji": emoji[league],
+                    "place": place,
+                    "status": (
+                        "won" if e == winner
+                        else "owes" if e in owers
+                        else ""
+                    )
+                }
+
+            period["leagues"].append({
+                "league": league,
+                "label": label[league],
+                "emoji": emoji[league],
+                "winner": pack(winner, pts_of(winner), 1),
+                "owes": [pack(e, pts_of(e), ranked.index(e) + 1)
+                         for e in owers]
+            })
+
+        return period
+
+    periods = []
+
+    # ---- backdated periods (before the game started) ----
+    if BACKDATE_CURRIES:
+
+        blocks = []
+        last = state["start_gw"] - 1
+
+        while last - PERIOD_LENGTH + 1 >= 1 and last <= finished_gw:
+            blocks.append((last - PERIOD_LENGTH + 1, last))
+            last -= PERIOD_LENGTH
+
+        blocks.reverse()
+
+        for number, (first, last) in enumerate(blocks, start=1):
+            periods.append(
+                settle(
+                    f"B{number}", number, first, last, initial, [], True,
+                    single=(last <= SINGLE_LEAGUE_UNTIL_GW)
+                )
+            )
+
+    # ---- finished periods ----
+    for k, swap in enumerate(swaps):
+
+        first, last = swap["gameweeks"]
+
+        periods.append(
+            settle(
+                f"P{swap['period']}", swap["period"], first, last,
+                before[k], swap.get("winners", []), False
+            )
+        )
+
+    # ---- the period being played now ----
+    first, last = period_bounds(state["start_gw"], state["periods_done"])
+
+    if first <= live_gw:
+
+        period = {
+            "label": f"P{state['periods_done'] + 1}",
+            "number": state["periods_done"] + 1,
+            "first": first,
+            "last": last,
+            "complete": False,
+            "backdated": False,
+            "by_entry": {},
+            "leagues": []
+        }
+
+        for league in ("championship", "challenger"):
+
+            group = sorted(
+                [r for r in rows if r["league"] == league],
+                key=lambda r: r["league_rank"]
+            )
+
+            if not group:
+                continue
+
+            for r in group:
+                period["by_entry"][str(r["entry"])] = {
+                    "points": r["points"],
+                    "league": league,
+                    "emoji": emoji[league],
+                    "place": r["league_rank"],
+                    "status": ""
+                }
+
+            period["leagues"].append({
+                "league": league,
+                "label": label[league],
+                "emoji": emoji[league],
+                "winner": pack(group[0]["entry"], group[0]["points"], 1),
+                "owes": []
+            })
+
+        periods.append(period)
+
+    # ---- every manager, every gameweek ----
+    managers = []
+
+    for r in rows:
+
+        gws = {}
+
+        for g in r["history"].get("current", []):
+            event = g.get("event")
+
+            if event and event <= live_gw:
+                gws[str(event)] = (
+                    g.get("points", 0) - g.get("event_transfers_cost", 0)
+                )
+
+        # The gameweek being shown uses the same live figure as the
+        # main dashboard
+        if live_gw:
+            gws[str(live_gw)] = r["gw_points"]
+
+        managers.append({
+            "entry": r["entry"],
+            "manager": r.get("player_name", "Unknown Manager"),
+            "team": r.get("entry_name", "Unknown Team"),
+            "league": r["league"],
+            "rank": r["league_rank"],
+            "gws": gws,
+            "curries_won": won.get(r["entry"], 0),
+            "curries_owed": owed.get(r["entry"], 0)
+        })
+
+    return {
+        "league_name": league_name,
+        "shown_gw": live_gw,
+        "live": live_gw > finished_gw,
+        "start_gw": state["start_gw"],
+        "owed_by": CURRY_OWED_BY,
+        "single_until": SINGLE_LEAGUE_UNTIL_GW,
+        "updated": datetime.now().strftime("%d %b %Y %H:%M"),
+        "managers": managers,
+        "periods": periods
+    }
+
+
+@app.route("/api/curry-table")
+def api_curry_table():
+
+    try:
+        return jsonify(build_curry_table())
+
+    except Exception as error:
+
+        return jsonify({"error": str(error)}), 500
+
+
+# ============================================================
 # CHIP PLANNER (marquee)
 # Works out the best week for each chip from the live FPL fixtures.
 #   * First half  : next unfinished GW up to GW19 (CHIP_SET_SPLIT_GW)
@@ -3212,20 +3802,9 @@ def api_history():
         load_history()
     )
 
-@app.route("/api/hits", methods=["POST"])
+@app.route("/api/hits")
 def api_hits():
-    """Password-protected hits record."""
-
-    body = request.get_json(silent=True) or {}
-
-    supplied = str(body.get("password", ""))
-
-    if not hmac.compare_digest(
-        supplied.encode("utf-8"),
-        HITS_PASSWORD.encode("utf-8")
-    ):
-        time.sleep(1)    # slows down password guessing
-        return jsonify({"error": "Wrong password"}), 401
+    """The hits record (every transfer hit taken this season)."""
 
     from_saved = False
 
@@ -3288,91 +3867,6 @@ def api_deadline():
             "gameweek": event.get("id"),
             "name": event.get("name"),
             "deadline": deadline_dt.isoformat().replace("+00:00", "Z")
-        })
-
-    except Exception as error:
-
-        return jsonify({
-            "error": str(error)
-        }), 500
-
-
-@app.route("/api/liverpool-fitness")
-def api_liverpool_fitness():
-    """Is the whole Liverpool first-team squad fit? (from FPL's own data)"""
-
-    try:
-        data = fpl_get("bootstrap-static/")
-
-        team = next(
-            (t for t in data.get("teams", [])
-             if t.get("name") == LIVERPOOL_TEAM_NAME),
-            None
-        )
-
-        if not team:
-            return jsonify({"error": "Liverpool not found in FPL data"}), 500
-
-        labels = {
-            "d": "Doubtful",
-            "i": "Injured",
-            "n": "Not available",
-            "s": "Suspended"
-        }
-
-        unfit = []
-        suspended = []
-        first_team = 0
-
-        for p in data.get("elements", []):
-
-            if p.get("team") != team["id"]:
-                continue
-
-            if p.get("web_name") in LIVERPOOL_IGNORE:
-                continue
-
-            status = p.get("status", "a")
-
-            # "u" = left the club / unavailable on loan
-            if status == "u":
-                continue
-
-            is_first_team = (
-                p.get("now_cost", 0) >= FIRST_TEAM_MIN_PRICE
-                or p.get("minutes", 0) >= FIRST_TEAM_MIN_MINUTES
-            )
-
-            if not is_first_team:
-                continue
-
-            first_team += 1
-
-            if status == "a":
-                continue
-
-            news = (p.get("news") or "").strip()
-
-            if status == "n" and not news:
-                continue
-
-            item = {
-                "name": p.get("web_name"),
-                "status": labels.get(status, status),
-                "news": news,
-                "chance": p.get("chance_of_playing_next_round")
-            }
-
-            if status == "s":
-                suspended.append(item)
-            else:
-                unfit.append(item)
-
-        return jsonify({
-            "fit": len(unfit) == 0,
-            "squad_size": first_team,
-            "unfit": unfit,
-            "suspended": suspended
         })
 
     except Exception as error:
@@ -3617,76 +4111,6 @@ body {
 
 .deadline-urgent .deadline-time {
     color: #ff4d6d;
-}
-
-.ticker {
-
-    overflow: hidden;
-
-    white-space: nowrap;
-
-    padding: 12px 0;
-
-    background: #061a14;
-
-    border-bottom: 2px solid rgba(0, 255, 135, 0.35);
-}
-
-.ticker-track {
-
-    display: inline-block;
-
-    padding-left: 100%;
-
-    font-size: 20px;
-
-    font-weight: 900;
-
-    letter-spacing: 1px;
-
-    animation: ticker-scroll 40s linear infinite;
-}
-
-.ticker:hover .ticker-track {
-    animation-play-state: paused;
-}
-
-.ticker-fit .ticker-track {
-
-    color: #00ff87;
-
-    text-shadow: 0 0 12px rgba(0, 255, 135, 0.6);
-}
-
-.ticker-unfit .ticker-track {
-    color: #ffd700;
-}
-
-.ticker-unfit .ticker-name {
-    color: #ff4d6d;
-}
-
-@keyframes ticker-scroll {
-
-    from {
-        transform: translateX(0);
-    }
-
-    to {
-        transform: translateX(-100%);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-    .ticker {
-        white-space: normal;
-    }
-
-    .ticker-track {
-        padding-left: 20px;
-        animation: none;
-    }
 }
 
 .controls {
@@ -4140,7 +4564,7 @@ button:hover {
 
 
 /* ==========================================================
-   HITS TRACKER (password protected pop-up)
+   HITS TRACKER (pop-up)
    ========================================================== */
 
 .modal {
@@ -4302,6 +4726,61 @@ button:hover {
 
 
 /* ==========================================================
+   CURRY TABLE
+   ========================================================== */
+
+.curry-table th,
+.curry-table td {
+
+    text-align: center;
+
+    padding: 8px 6px;
+
+    white-space: nowrap;
+}
+
+.curry-table th:nth-child(2),
+.curry-table td:nth-child(2) {
+
+    text-align: left;
+}
+
+.curry-period {
+
+    background: rgba(0, 255, 135, 0.07);
+
+    font-weight: 800;
+
+    border-left: 1px solid rgba(0, 255, 135, 0.3);
+}
+
+.curry-won {
+
+    background: rgba(255, 215, 0, 0.2);
+
+    color: #ffd700;
+
+    font-weight: 900;
+}
+
+.curry-owes {
+
+    background: rgba(255, 77, 109, 0.2);
+
+    color: #ff4d6d;
+
+    font-weight: 900;
+}
+
+.curry-sub {
+
+    font-size: 10px;
+
+    font-weight: 800;
+}
+
+
+/* ==========================================================
    FOOTER
    ========================================================== */
 
@@ -4414,11 +4893,6 @@ button:hover {
 
 </div>
 
-<div id="lfcTicker" class="ticker" style="display: none;">
-    <div class="ticker-track" id="lfcTickerTrack"></div>
-</div>
-
-
 <div class="chip-marquee" id="chipMarquee">
     <div class="chip-marquee-track" id="chipMarqueeTrack">
         <span class="chip-marquee-item">Loading chip planner...</span>
@@ -4444,7 +4918,7 @@ button:hover {
 </button>
 
     <button onclick="openHits()">
-    🔒 HITS TRACKER
+    🤡 HITS TRACKER
 </button>
 
 </div>
@@ -4549,9 +5023,19 @@ button:hover {
 
     <div class="chart-card">
 
-        <h2>
-            🧊 Frozen GW1 Team (No Transfers)
-        </h2>
+        <div style="display: flex; justify-content: space-between;
+                    align-items: center; flex-wrap: wrap; gap: 10px;
+                    margin-bottom: 15px;">
+
+            <h2 style="margin: 0;">
+                🧊 Frozen GW1 Team (No Transfers)
+            </h2>
+
+            <button onclick="downloadGw1Png()">
+                📸 SAVE FROZEN TEAM AS PNG
+            </button>
+
+        </div>
 
         <div class="chip-note">
             Running total if each manager had kept their Gameweek 1 squad
@@ -4569,17 +5053,30 @@ button:hover {
 
     <div class="chart-card">
 
-        <h2>
-            🔴 Liverpool Fitness
-        </h2>
+        <div style="display: flex; justify-content: space-between;
+                    align-items: center; flex-wrap: wrap; gap: 10px;
+                    margin-bottom: 15px;">
 
-        <div class="chip-note">
-            Uses FPL's own injury news, so it can lag behind the club.
+            <h2 style="margin: 0;">
+                🍛 Curry Table
+            </h2>
+
+            <button onclick="downloadCurryPng()">
+                📸 SAVE CURRY TABLE AS PNG
+            </button>
+
         </div>
 
-        <div id="liverpoolFitness"></div>
+        <div id="curryNote" class="chip-note"></div>
+
+        <div id="curryTable" style="overflow-x: auto;"></div>
+
+        <h3 style="margin: 25px 0 10px;">Curry results by period</h3>
+
+        <div id="curryResults" style="overflow-x: auto;"></div>
 
     </div>
+
 
 </div>
 
@@ -4597,23 +5094,7 @@ button:hover {
 
         </div>
 
-        <div id="hitsLogin">
-
-            <div>Enter your password to see the hits record.</div>
-
-            <input type="password"
-                   id="hitsPassword"
-                   placeholder="Password"
-                   autocomplete="off"
-                   onkeydown="if (event.key === 'Enter') unlockHits()">
-
-            <button onclick="unlockHits()">🔓 UNLOCK</button>
-
-            <div id="hitsError" class="hits-error"></div>
-
-        </div>
-
-        <div id="hitsResults" style="display: none;"></div>
+        <div id="hitsResults"></div>
 
     </div>
 
@@ -4622,7 +5103,8 @@ button:hover {
 
 <div class="footer">
 
-    FPL League Dashboard • Automatically updated from FPL
+    FPL League Dashboard • Automatically updated from FPL •
+    <a href="/api/debug-scores" style="color: #557268;">Score check</a>
 
 </div>
 
@@ -4775,7 +5257,7 @@ function renderDashboard(data) {
     );
 
     loadGw1Team();
-    loadLiverpool();
+    loadCurryTable();
 }
 
 
@@ -5206,24 +5688,37 @@ function renderChipScores(players) {
 
 
 /* ==========================================================
-   HITS TRACKER (password protected)
+   HITS TRACKER
    ========================================================== */
 
-function openHits() {
+async function openHits() {
 
     document.getElementById("hitsModal").style.display = "flex";
 
-    document.getElementById("hitsLogin").style.display = "block";
+    const box = document.getElementById("hitsResults");
 
-    document.getElementById("hitsResults").style.display = "none";
+    box.style.display = "block";
 
-    document.getElementById("hitsError").innerText = "";
+    box.innerHTML = `<div class="chip-note">Loading hits...</div>`;
 
-    const input = document.getElementById("hitsPassword");
+    try {
 
-    input.value = "";
+        const response = await fetch("/api/hits");
 
-    input.focus();
+        const data = await response.json();
+
+        if (!response.ok) {
+
+            throw new Error(data.error || "Unable to load the hits");
+        }
+
+        renderHits(data);
+
+    } catch (err) {
+
+        box.innerHTML =
+            `<div class="hits-error">${escapeHtml(err.message)}</div>`;
+    }
 }
 
 function closeHits() {
@@ -5234,48 +5729,6 @@ function closeHits() {
     document.getElementById("hitsResults").innerHTML = "";
 
     lastHitsData = null;
-}
-
-async function unlockHits() {
-
-    const input = document.getElementById("hitsPassword");
-
-    const error = document.getElementById("hitsError");
-
-    error.innerText = "Checking...";
-
-    try {
-
-        const response = await fetch("/api/hits", {
-
-            method: "POST",
-
-            headers: { "Content-Type": "application/json" },
-
-            body: JSON.stringify({ password: input.value })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-
-            throw new Error(data.error || "Unable to unlock");
-        }
-
-        input.value = "";
-
-        error.innerText = "";
-
-        document.getElementById("hitsLogin").style.display = "none";
-
-        document.getElementById("hitsResults").style.display = "block";
-
-        renderHits(data);
-
-    } catch (err) {
-
-        error.innerText = err.message;
-    }
 }
 
 function renderHits(data) {
@@ -5783,6 +6236,8 @@ function downloadCaptainsPng() {
    FROZEN GW1 TEAM (no transfers)
    ========================================================== */
 
+let lastGw1Data = null;
+
 async function loadGw1Team() {
 
     const box = document.getElementById("gw1Team");
@@ -5800,6 +6255,8 @@ async function loadGw1Team() {
         if (data.error) {
             throw new Error(data.error);
         }
+
+        lastGw1Data = data;
 
         renderGw1Team(data);
 
@@ -5914,171 +6371,912 @@ function renderGw1Team(data) {
 
 
 /* ==========================================================
-   LIVERPOOL FITNESS
+   FROZEN GW1 TEAM - SAVE AS PNG
    ========================================================== */
 
-async function loadLiverpool() {
+function downloadGw1Png() {
 
-    const box = document.getElementById("liverpoolFitness");
+    if (!lastGw1Data || !lastGw1Data.finished_gw) {
+
+        alert("The frozen team table hasn't loaded yet.");
+
+        return;
+    }
+
+    const data = lastGw1Data;
+    const n = data.finished_gw;
+
+    const green = "#00FF87";
+    const dark = "#061A14";
+    const rowBg = "#0D3024";
+    const white = "#FFFFFF";
+    const grey = "#9AB3A8";
+    const red = "#FF4D6D";
+    const font = "Arial, Helvetica, sans-serif";
+
+    const S = 2;
+    const pad = 40;
+
+    const rankW = 40;
+    const nameW = 250;
+    const statW = 110;
+    const gwW = 56;
+
+    const tableW = rankW + nameW + statW * 3 + n * gwW;
+
+    const W = Math.max(tableW + pad * 2, 1300);
+
+    const rowH = 50;
+    const gap = 4;
+    const headerH = 120;
+    const colHeadH = 40;
+    const legendH = 90;
+    const footerH = 70;
+
+    const H = headerH + 25 + colHeadH
+            + data.managers.length * (rowH + gap)
+            + legendH + footerH;
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = W * S;
+    canvas.height = H * S;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.scale(S, S);
+    ctx.textBaseline = "alphabetic";
+
+    // Background + header
+    ctx.fillStyle = dark;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = green;
+    ctx.fillRect(0, 0, W, headerH);
+
+    ctx.fillStyle = dark;
+    ctx.textAlign = "left";
+    ctx.font = `bold 46px ${font}`;
+    ctx.fillText("🧊 FROZEN GW1 TEAM", pad, 64);
+
+    ctx.font = `18px ${font}`;
+    ctx.fillText(
+        `No transfers, no hits, no chips  •  GW1-${n}`,
+        pad + 4,
+        100
+    );
+
+    // Column headings
+    let y = headerH + 25;
+
+    const x0 = pad;
+    const nameX = x0 + rankW;
+    const statX = nameX + nameW;
+    const firstGwX = statX + statW * 3;
+
+    ctx.fillStyle = grey;
+    ctx.font = `bold 13px ${font}`;
+
+    ctx.textAlign = "center";
+    ctx.fillText("#", x0 + rankW / 2, y + 26);
+
+    ctx.textAlign = "left";
+    ctx.fillText("MANAGER", nameX, y + 26);
+
+    ctx.textAlign = "center";
+    ctx.fillText("GW1 TEAM", statX + statW / 2, y + 26);
+    ctx.fillText("ACTUAL", statX + statW * 1.5, y + 26);
+    ctx.fillText("TRANSFERS", statX + statW * 2.5, y + 20);
+    ctx.fillText("EFFECT", statX + statW * 2.5, y + 35);
+
+    for (let i = 0; i < n; i++) {
+        ctx.fillText(`GW${i + 1}`, firstGwX + i * gwW + gwW / 2, y + 26);
+    }
+
+    y += colHeadH;
+
+    // Rows
+    data.managers.forEach((m, index) => {
+
+        ctx.fillStyle = rowBg;
+        ctx.beginPath();
+        ctx.roundRect(x0, y, tableW, rowH, 10);
+        ctx.fill();
+
+        // Rank
+        ctx.textAlign = "center";
+        ctx.fillStyle = white;
+        ctx.font = `bold 18px ${font}`;
+        ctx.fillText(String(index + 1), x0 + rankW / 2, y + 31);
+
+        // Manager + team
+        ctx.textAlign = "left";
+        ctx.fillStyle = white;
+        ctx.font = `bold 18px ${font}`;
+        ctx.fillText(fitText(ctx, m.manager, nameW - 14), nameX, y + 23);
+
+        ctx.fillStyle = grey;
+        ctx.font = `12px ${font}`;
+        ctx.fillText(fitText(ctx, m.team, nameW - 14), nameX, y + 40);
+
+        if (!m.has_team) {
+
+            ctx.fillStyle = "#5d776c";
+            ctx.font = `15px ${font}`;
+            ctx.fillText("No GW1 team found", statX, y + 31);
+
+            y += rowH + gap;
+
+            return;
+        }
+
+        // Frozen total, actual total, effect
+        ctx.textAlign = "center";
+
+        ctx.fillStyle = green;
+        ctx.font = `bold 20px ${font}`;
+        ctx.fillText(String(m.total), statX + statW / 2, y + 32);
+
+        ctx.fillStyle = white;
+        ctx.fillText(
+            (m.actual === null || m.actual === undefined)
+                ? "—" : String(m.actual),
+            statX + statW * 1.5,
+            y + 32
+        );
+
+        if (m.actual === null || m.actual === undefined) {
+
+            ctx.fillStyle = "#5d776c";
+            ctx.fillText("—", statX + statW * 2.5, y + 32);
+
+        } else {
+
+            const diff = m.actual - m.total;
+
+            ctx.fillStyle = diff > 0 ? green : diff < 0 ? red : grey;
+            ctx.fillText(
+                (diff > 0 ? "+" : "") + diff,
+                statX + statW * 2.5,
+                y + 32
+            );
+        }
+
+        // Running total after each gameweek
+        ctx.font = `15px ${font}`;
+
+        for (let i = 0; i < n; i++) {
+
+            const v = m.running[i];
+
+            ctx.fillStyle = v === undefined ? "#5d776c" : white;
+            ctx.fillText(
+                v === undefined ? "—" : String(v),
+                firstGwX + i * gwW + gwW / 2,
+                y + 31
+            );
+        }
+
+        y += rowH + gap;
+    });
+
+    // Legend + footer
+    y += 15;
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = grey;
+    ctx.font = `14px ${font}`;
+
+    ctx.fillText(
+        "GW1 TEAM = running total if they had kept their GW1 squad all season "
+        + "(same XI, bench order and captain; auto-subs still apply)",
+        pad,
+        y + 20
+    );
+
+    ctx.fillText(
+        "TRANSFERS EFFECT = actual total minus frozen total, "
+        + "so green means their changes paid off",
+        pad,
+        y + 44
+    );
+
+    ctx.fillText(
+        `Counted once each gameweek has finished (up to GW${n})`,
+        pad,
+        y + 68
+    );
+
+    ctx.fillText(
+        `Updated: ${new Date().toLocaleString()}`,
+        pad,
+        H - 38
+    );
+
+    ctx.fillStyle = green;
+    ctx.fillText("Fantasy Premier League Mini League", pad, H - 16);
+
+    // Download
+    canvas.toBlob(blob => {
+
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = `FPL_Frozen_GW1_Team_GW${n}.png`;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(url);
+
+    }, "image/png");
+}
+
+
+/* ==========================================================
+   CURRY TABLE
+   ========================================================== */
+
+let lastCurryData = null;
+
+async function loadCurryTable() {
+
+    const box = document.getElementById("curryTable");
+
+    if (!box.innerHTML.trim()) {
+        box.innerHTML =
+            `<div class="chip-note">Working out the curry table...</div>`;
+    }
 
     try {
 
-        const response = await fetch("/api/liverpool-fitness");
+        const response = await fetch("/api/curry-table");
         const data = await response.json();
 
         if (data.error) {
             throw new Error(data.error);
         }
 
-        renderLiverpoolTicker(data);
+        lastCurryData = data;
 
-        let html = "";
-
-        if (data.fit) {
-
-            html += `
-                <div style="color: #00ff87; font-size: 26px;
-                            font-weight: 900; margin: 10px 0;">
-                    ✅ Whole first-team squad is fit
-                    <span class="hits-weeks">
-                        (${data.squad_size} players checked)
-                    </span>
-                </div>
-            `;
-
-        } else {
-
-            let rows = "";
-
-            data.unfit.forEach(p => {
-
-                const chance = (p.chance === null || p.chance === undefined)
-                    ? "—"
-                    : p.chance + "%";
-
-                rows += `
-                    <tr>
-                        <td><strong>${escapeHtml(p.name)}</strong></td>
-                        <td style="color: #ff4d6d;">
-                            ${escapeHtml(p.status)}
-                        </td>
-                        <td>${chance}</td>
-                        <td>${escapeHtml(p.news)}</td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                <div style="color: #ffd700; font-size: 22px;
-                            font-weight: 900; margin: 10px 0;">
-                    ⚠️ ${data.unfit.length} not fully fit
-                    <span class="hits-weeks">
-                        (${data.squad_size} players checked)
-                    </span>
-                </div>
-
-                <div style="overflow-x: auto;">
-                    <table class="hits-table">
-                        <tr>
-                            <th>PLAYER</th>
-                            <th>STATUS</th>
-                            <th>CHANCE NEXT GW</th>
-                            <th>NEWS</th>
-                        </tr>
-                        ${rows}
-                    </table>
-                </div>
-            `;
-        }
-
-        if (data.suspended.length) {
-
-            html += `
-                <div class="hits-weeks" style="margin-top: 10px;">
-                    Suspended: ${data.suspended
-                        .map(p => escapeHtml(p.name)).join(", ")}
-                </div>
-            `;
-        }
-
-        box.innerHTML = html;
+        renderCurryTable(data);
 
     } catch (error) {
 
         console.error(error);
 
-        document.getElementById("lfcTicker").style.display = "none";
-
         box.innerHTML =
-            `<div class="chip-note">Couldn't load this: `
+            `<div class="chip-note">Couldn't load this table: `
             + `${escapeHtml(error.message)}</div>`;
     }
 }
 
+function curryRule(data) {
 
-/* ==========================================================
-   LIVERPOOL TICKER
-   ========================================================== */
+    return data.owed_by === "all"
+        ? "everyone else in the same league owes that league's winner a curry"
+        : "last place in a league owes the winner of the SAME league a curry";
+}
 
-function renderLiverpoolTicker(data) {
+// "🏆 Dave (31) owes Sam" - the emoji shows which league it is
+function curryOwesText(l) {
 
-    const ticker = document.getElementById("lfcTicker");
-    const track = document.getElementById("lfcTickerTrack");
-
-    let item = "";
-    let separator = "";
-
-    if (data.fit) {
-
-        ticker.className = "ticker ticker-fit";
-
-        item = "✅ LIVERPOOL ARE FULLY FIT &nbsp;⚽&nbsp; "
-             + "LIVERPOOL WILL WIN THE UCL! &nbsp;🏆🔴";
-
-        separator = " &nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp; ";
-
-    } else {
-
-        ticker.className = "ticker ticker-unfit";
-
-        const parts = data.unfit.map(p => {
-
-            const chance = (p.chance === null || p.chance === undefined)
-                ? ""
-                : ", " + p.chance + "% chance";
-
-            const news = p.news ? " - " + p.news : "";
-
-            return `<span class="ticker-name">`
-                 + escapeHtml(p.name.toUpperCase())
-                 + `</span> (${escapeHtml(p.status + chance + news)})`;
-        });
-
-        item = "🚑 LIVERPOOL INJURY NEWS: " + parts.join(" &nbsp;•&nbsp; ");
-
-        if (data.suspended.length) {
-            item += " &nbsp;•&nbsp; 🟨 SUSPENDED: "
-                  + data.suspended
-                      .map(p => escapeHtml(p.name.toUpperCase()))
-                      .join(", ");
-        }
-
-        separator = " &nbsp;&nbsp;&nbsp;🔸&nbsp;&nbsp;&nbsp; ";
+    if (!l.owes.length) {
+        return "—";
     }
 
-    // Repeat the message so there's always something on screen
-    track.innerHTML = [item, item, item].join(separator);
+    const names = l.owes
+        .map(o => `${o.manager} (${o.points})`)
+        .join(", ");
 
-    ticker.style.display = "block";
+    return `${l.emoji} ${names} `
+         + `${l.owes.length === 1 ? "owes" : "owe"} ${l.winner.manager}`;
+}
 
-    // Scroll at a steady speed whatever the length
-    const speed = 110;   // pixels per second
-    const seconds = Math.max(
-        15,
-        (track.scrollWidth + window.innerWidth) / speed
+// The columns, in order: GW1, GW2 ... with a period total column after
+// the last gameweek of each period (live period goes on the end)
+function curryColumns(data) {
+
+    const ends = {};
+    let live = null;
+
+    data.periods.forEach(p => {
+        if (p.complete) {
+            ends[p.last] = p;
+        } else {
+            live = p;
+        }
+    });
+
+    const cols = [];
+
+    for (let gw = 1; gw <= data.shown_gw; gw++) {
+
+        cols.push({ type: "gw", gw: gw });
+
+        if (ends[gw]) {
+            cols.push({ type: "period", period: ends[gw] });
+        }
+    }
+
+    if (live) {
+        cols.push({ type: "period", period: live });
+    }
+
+    return cols;
+}
+
+function renderCurryTable(data) {
+
+    document.getElementById("curryNote").innerText =
+        `Every gameweek from GW1. After each period there is a period `
+        + `column: gold 🍛 = won the curry, red OWES = `
+        + curryRule(data) + `. Emoji = league: 🏆 Championship, `
+        + `⚔️ Challenger, ⚽ single league (GW1-${data.single_until}, `
+        + `before the split). B = backdated period (played before `
+        + `GW${data.start_gw}).`
+        + (data.live ? ` GW${data.shown_gw} is live.` : "");
+
+    const cols = curryColumns(data);
+
+    let head = "";
+
+    cols.forEach(c => {
+
+        if (c.type === "gw") {
+            head += `<th>GW${c.gw}</th>`;
+        } else {
+            const p = c.period;
+            head += `<th class="curry-period">${p.label}`
+                  + (p.complete ? "" : "*")
+                  + `<div class="curry-sub">GW${p.first}-${p.last}</div></th>`;
+        }
+    });
+
+    let rows = "";
+    let lastLeague = null;
+
+    data.managers.forEach(m => {
+
+        if (m.league !== lastLeague) {
+
+            lastLeague = m.league;
+
+            rows += `<tr><td colspan="${cols.length + 4}" `
+                  + `style="text-align:left; color:#00ff87; font-weight:900;">`
+                  + (m.league === "championship"
+                        ? "🏆 CHAMPIONSHIP" : "⚔️ CHALLENGER")
+                  + `</td></tr>`;
+        }
+
+        let cells = "";
+
+        cols.forEach(c => {
+
+            if (c.type === "gw") {
+
+                const v = m.gws[String(c.gw)];
+
+                cells += (v === undefined || v === null)
+                    ? `<td style="color: #5d776c;">—</td>`
+                    : `<td${v < 0 ? ' style="color:#ff4d6d;"' : ""}>${v}</td>`;
+
+                return;
+            }
+
+            const r = c.period.by_entry[String(m.entry)];
+
+            if (!r) {
+                cells += `<td class="curry-period" style="color:#5d776c;">—</td>`;
+                return;
+            }
+
+            if (r.status === "won") {
+                cells += `<td class="curry-period curry-won">${r.points}`
+                       + `<div class="curry-sub">🍛 WON ${r.emoji}</div></td>`;
+            } else if (r.status === "owes") {
+                cells += `<td class="curry-period curry-owes">${r.points}`
+                       + `<div class="curry-sub">OWES ${r.emoji}</div></td>`;
+            } else {
+                cells += `<td class="curry-period">${r.points}</td>`;
+            }
+        });
+
+        rows += `
+            <tr>
+                <td>${m.rank}</td>
+                <td>
+                    <strong>${escapeHtml(m.manager)}</strong>
+                    <div class="hits-weeks">${escapeHtml(m.team)}</div>
+                </td>
+                <td style="color:#ffd700; font-weight:900;">
+                    ${m.curries_won ? "🍛 " + m.curries_won : "0"}
+                </td>
+                <td style="color:${m.curries_owed ? "#ff4d6d" : "#5d776c"}; font-weight:900;">
+                    ${m.curries_owed}
+                </td>
+                ${cells}
+            </tr>
+        `;
+    });
+
+    document.getElementById("curryTable").innerHTML = `
+        <table class="hits-table curry-table">
+            <tr>
+                <th>#</th>
+                <th>MANAGER</th>
+                <th>WON</th>
+                <th>OWES</th>
+                ${head}
+            </tr>
+            ${rows}
+        </table>
+    `;
+
+    // ---- results by period ----
+    let results = "";
+
+    data.periods.forEach(p => {
+
+        p.leagues.forEach(l => {
+
+            const owes = p.complete
+                ? escapeHtml(curryOwesText(l))
+                : "—";
+
+            results += `
+                <tr>
+                    <td>${p.label}${p.complete ? "" : "*"}
+                        <div class="hits-weeks">GW${p.first}-${p.last}</div></td>
+                    <td>${l.emoji} ${l.label}</td>
+                    <td style="color:#ffd700; font-weight:900;">
+                        ${p.complete ? "🍛 " : "leading: "}
+                        ${escapeHtml(l.winner.manager)} (${l.winner.points})
+                    </td>
+                    <td style="color:#ff4d6d;">${owes}</td>
+                </tr>
+            `;
+        });
+    });
+
+    document.getElementById("curryResults").innerHTML = results
+        ? `<table class="hits-table">
+               <tr><th>PERIOD</th><th>LEAGUE</th>
+                   <th>WON THE CURRY</th><th>OWES A CURRY</th></tr>
+               ${results}
+           </table>
+           <div class="chip-note" style="margin-top:8px;">* = period still in progress</div>`
+        : `<div class="chip-note">No periods have started yet.</div>`;
+}
+
+
+function downloadCurryPng() {
+
+    if (!lastCurryData) {
+
+        alert("The curry table hasn't loaded yet.");
+
+        return;
+    }
+
+    const data = lastCurryData;
+    const cols = curryColumns(data);
+
+    const green = "#00FF87";
+    const dark = "#061A14";
+    const rowBg = "#0D3024";
+    const periodBg = "#14402F";
+    const white = "#FFFFFF";
+    const grey = "#9AB3A8";
+    const red = "#FF4D6D";
+    const gold = "#FFD700";
+    const font = "Arial, Helvetica, sans-serif";
+
+    const S = 2;
+    const pad = 40;
+
+    const rankW = 40;
+    const nameW = 250;
+    const tallyW = 70;
+    const gwW = 48;
+    const perW = 78;
+
+    const colW = c => c.type === "gw" ? gwW : perW;
+
+    const tableW =
+        rankW + nameW + tallyW * 2
+        + cols.reduce((sum, c) => sum + colW(c), 0);
+
+    const W = Math.max(tableW + pad * 2, 1300);
+
+    const rowH = 50;
+    const gap = 4;
+    const leagueH = 30;
+    const headerH = 120;
+    const colHeadH = 46;
+
+    // Layout of the grid: league headings and manager rows
+    const items = [];
+    let lastLeague = null;
+
+    data.managers.forEach(m => {
+
+        if (m.league !== lastLeague) {
+            lastLeague = m.league;
+            items.push({ head: m.league });
+        }
+
+        items.push({ m: m });
+    });
+
+    const gridH = items.reduce(
+        (sum, it) => sum + (it.head ? leagueH : rowH + gap), 0
     );
 
-    track.style.animationDuration = seconds + "s";
+    const resultRows = [];
+
+    data.periods.forEach(p => {
+        p.leagues.forEach(l => resultRows.push({ p: p, l: l }));
+    });
+
+    const resultRowH = 34;
+    const resultsH = resultRows.length
+        ? 60 + resultRows.length * resultRowH
+        : 0;
+
+    const legendH = 105;
+    const footerH = 70;
+
+    const H = headerH + 25 + colHeadH + gridH + 25
+            + resultsH + legendH + footerH;
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = W * S;
+    canvas.height = H * S;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.scale(S, S);
+    ctx.textBaseline = "alphabetic";
+
+    // Background + header
+    ctx.fillStyle = dark;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = green;
+    ctx.fillRect(0, 0, W, headerH);
+
+    ctx.fillStyle = dark;
+    ctx.textAlign = "left";
+    ctx.font = `bold 48px ${font}`;
+    ctx.fillText("🍛 FPL CURRY TABLE", pad, 66);
+
+    ctx.font = `18px ${font}`;
+    ctx.fillText(
+        `${data.league_name}  •  GW1-${data.shown_gw}`
+        + (data.live ? "  (GW" + data.shown_gw + " live)" : ""),
+        pad + 4,
+        100
+    );
+
+    // Column headings
+    let y = headerH + 25;
+
+    const x0 = pad;
+    const nameX = x0 + rankW;
+    const tallyX = nameX + nameW;
+    const firstColX = tallyX + tallyW * 2;
+
+    ctx.fillStyle = grey;
+    ctx.font = `bold 13px ${font}`;
+    ctx.textAlign = "center";
+    ctx.fillText("#", x0 + rankW / 2, y + 28);
+
+    ctx.textAlign = "left";
+    ctx.fillText("MANAGER", nameX, y + 28);
+
+    ctx.textAlign = "center";
+    ctx.fillText("WON", tallyX + tallyW / 2, y + 28);
+    ctx.fillText("OWES", tallyX + tallyW * 1.5, y + 28);
+
+    let cx = firstColX;
+
+    cols.forEach(c => {
+
+        const w = colW(c);
+
+        if (c.type === "gw") {
+
+            ctx.fillStyle = grey;
+            ctx.font = `bold 13px ${font}`;
+            ctx.fillText(`GW${c.gw}`, cx + w / 2, y + 28);
+
+        } else {
+
+            const p = c.period;
+
+            ctx.fillStyle = green;
+            ctx.font = `bold 14px ${font}`;
+            ctx.fillText(
+                `${p.label}${p.complete ? "" : "*"}`,
+                cx + w / 2,
+                y + 22
+            );
+
+            ctx.font = `bold 11px ${font}`;
+            ctx.fillText(`GW${p.first}-${p.last}`, cx + w / 2, y + 38);
+        }
+
+        cx += w;
+    });
+
+    y += colHeadH;
+
+    // Rows
+    items.forEach(it => {
+
+        if (it.head) {
+
+            ctx.textAlign = "left";
+            ctx.fillStyle = green;
+            ctx.font = `bold 15px ${font}`;
+            ctx.fillText(
+                it.head === "championship"
+                    ? "🏆 CHAMPIONSHIP" : "⚔️ CHALLENGER",
+                x0 + 4,
+                y + 21
+            );
+
+            y += leagueH;
+
+            return;
+        }
+
+        const m = it.m;
+
+        ctx.fillStyle = rowBg;
+        ctx.beginPath();
+        ctx.roundRect(x0, y, tableW, rowH, 10);
+        ctx.fill();
+
+        // Rank
+        ctx.textAlign = "center";
+        ctx.fillStyle = white;
+        ctx.font = `bold 18px ${font}`;
+        ctx.fillText(String(m.rank), x0 + rankW / 2, y + 31);
+
+        // Manager + team
+        ctx.textAlign = "left";
+        ctx.fillStyle = white;
+        ctx.font = `bold 18px ${font}`;
+        ctx.fillText(fitText(ctx, m.manager, nameW - 14), nameX, y + 23);
+
+        ctx.fillStyle = grey;
+        ctx.font = `12px ${font}`;
+        ctx.fillText(fitText(ctx, m.team, nameW - 14), nameX, y + 40);
+
+        // Curries won / owed
+        ctx.textAlign = "center";
+
+        ctx.fillStyle = m.curries_won ? gold : grey;
+        ctx.font = `bold 20px ${font}`;
+        ctx.fillText(
+            m.curries_won ? `🍛 ${m.curries_won}` : "0",
+            tallyX + tallyW / 2,
+            y + 32
+        );
+
+        ctx.fillStyle = m.curries_owed ? red : grey;
+        ctx.fillText(String(m.curries_owed), tallyX + tallyW * 1.5, y + 32);
+
+        // Gameweek / period cells
+        let x = firstColX;
+
+        cols.forEach(c => {
+
+            const w = colW(c);
+
+            if (c.type === "gw") {
+
+                const v = m.gws[String(c.gw)];
+
+                ctx.fillStyle =
+                    (v === undefined || v === null) ? "#5d776c"
+                    : v < 0 ? red : white;
+
+                ctx.font = `16px ${font}`;
+                ctx.fillText(
+                    (v === undefined || v === null) ? "—" : String(v),
+                    x + w / 2,
+                    y + 31
+                );
+
+            } else {
+
+                const r = c.period.by_entry[String(m.entry)];
+
+                let bg = periodBg;
+
+                if (r && r.status === "won") {
+                    bg = "#5A4A0A";
+                } else if (r && r.status === "owes") {
+                    bg = "#5A1B2A";
+                }
+
+                ctx.fillStyle = bg;
+                ctx.beginPath();
+                ctx.roundRect(x + 3, y + 4, w - 6, rowH - 8, 8);
+                ctx.fill();
+
+                if (!r) {
+
+                    ctx.fillStyle = "#5d776c";
+                    ctx.font = `16px ${font}`;
+                    ctx.fillText("—", x + w / 2, y + 31);
+
+                } else if (r.status) {
+
+                    const colour = r.status === "won" ? gold : red;
+
+                    ctx.fillStyle = colour;
+                    ctx.font = `bold 19px ${font}`;
+                    ctx.fillText(String(r.points), x + w / 2, y + 26);
+
+                    ctx.font = `bold 11px ${font}`;
+                    ctx.fillText(
+                        r.status === "won"
+                            ? `🍛 WON ${r.emoji}`
+                            : `OWES ${r.emoji}`,
+                        x + w / 2,
+                        y + 40
+                    );
+
+                } else {
+
+                    ctx.fillStyle = white;
+                    ctx.font = `bold 19px ${font}`;
+                    ctx.fillText(String(r.points), x + w / 2, y + 31);
+                }
+            }
+
+            x += w;
+        });
+
+        y += rowH + gap;
+    });
+
+    y += 25;
+
+    // Results by period
+    if (resultRows.length) {
+
+        ctx.textAlign = "left";
+        ctx.fillStyle = white;
+        ctx.font = `bold 24px ${font}`;
+        ctx.fillText("CURRY RESULTS BY PERIOD", pad, y + 20);
+
+        y += 40;
+
+        const xPeriod = pad + 10;
+        const xLeague = pad + 190;
+        const xWinner = pad + 340;
+        const xOwes = pad + 700;
+
+        ctx.fillStyle = grey;
+        ctx.font = `bold 13px ${font}`;
+        ctx.fillText("PERIOD", xPeriod, y + 14);
+        ctx.fillText("LEAGUE", xLeague, y + 14);
+        ctx.fillText("WON THE CURRY", xWinner, y + 14);
+        ctx.fillText("OWES A CURRY", xOwes, y + 14);
+
+        y += 20;
+
+        resultRows.forEach(r => {
+
+            const p = r.p;
+            const l = r.l;
+
+            ctx.fillStyle = rowBg;
+            ctx.beginPath();
+            ctx.roundRect(pad, y, W - pad * 2, resultRowH - 4, 8);
+            ctx.fill();
+
+            ctx.textAlign = "left";
+
+            ctx.fillStyle = white;
+            ctx.font = `bold 16px ${font}`;
+            ctx.fillText(
+                `${p.label}${p.complete ? "" : "*"}  (GW${p.first}-${p.last})`,
+                xPeriod,
+                y + 22
+            );
+
+            ctx.fillStyle = grey;
+            ctx.font = `15px ${font}`;
+            ctx.fillText(`${l.emoji} ${l.label}`, xLeague, y + 22);
+
+            ctx.fillStyle = gold;
+            ctx.font = `bold 16px ${font}`;
+            ctx.fillText(
+                fitText(
+                    ctx,
+                    (p.complete ? "🍛 " : "leading: ")
+                        + `${l.winner.manager} (${l.winner.points})`,
+                    xOwes - xWinner - 15
+                ),
+                xWinner,
+                y + 22
+            );
+
+            ctx.fillStyle = red;
+            ctx.font = `bold 15px ${font}`;
+
+            const owesText = p.complete ? curryOwesText(l) : "—";
+
+            ctx.fillText(
+                fitText(ctx, owesText, W - pad - xOwes - 15),
+                xOwes,
+                y + 22
+            );
+
+            y += resultRowH;
+        });
+
+        y += 10;
+    }
+
+    // Legend + footer
+    ctx.textAlign = "left";
+    ctx.fillStyle = grey;
+    ctx.font = `14px ${font}`;
+
+    ctx.fillText(
+        `🍛 WON = 1st in their league for the period  •  OWES = `
+        + curryRule(data),
+        pad,
+        y + 20
+    );
+
+    ctx.fillText(
+        `🏆 Championship  •  ⚔️ Challenger  •  ⚽ single league `
+        + `(GW1-${data.single_until}, before the split)`,
+        pad,
+        y + 68
+    );
+
+    ctx.fillText(
+        `B = backdated (before GW${data.start_gw})  •  `
+        + `* = period still in progress  •  scores are after transfer hits`,
+        pad,
+        y + 44
+    );
+
+    ctx.fillText(`Updated: ${data.updated}`, pad, H - 38);
+
+    ctx.fillStyle = green;
+    ctx.fillText("Fantasy Premier League Mini League", pad, H - 16);
+
+    // Download
+    canvas.toBlob(blob => {
+
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = `FPL_Curry_Table_GW${data.shown_gw}.png`;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(url);
+
+    }, "image/png");
 }
 
 
@@ -6346,6 +7544,15 @@ setInterval(loadChipPlanner, 30 * 60 * 1000);
 refreshData();
 loadDeadline();
 
+// While a gameweek is being played, refresh the scores every 2 minutes
+setInterval(function () {
+
+    if (currentData && currentData.live) {
+        refreshData();
+    }
+
+}, 120000);
+
 </script>
 
 
@@ -6360,12 +7567,6 @@ loadDeadline();
 # ============================================================
 
 if __name__ == "__main__":
-
-    if HITS_PASSWORD == "change-me":
-        print(
-            "WARNING: change HITS_PASSWORD at the top of the file "
-            "to protect the hits tracker."
-        )
 
     app.run(
         host="127.0.0.1",
