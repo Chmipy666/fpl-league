@@ -1,0 +1,1571 @@
+{
+  "entries": {
+    "3061020": {
+      "1": {
+        "actual": 42,
+        "best": 45,
+        "missed": 3,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gro\u00df",
+            "out_points": 2,
+            "in": "Ampadu",
+            "in_points": 5
+          }
+        ]
+      },
+      "2": {
+        "actual": 76,
+        "best": 87,
+        "missed": 11,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Van Hecke",
+            "out_points": 1,
+            "in": "Tarkowski",
+            "in_points": 12
+          }
+        ]
+      },
+      "3": {
+        "actual": 49,
+        "best": 53,
+        "missed": 4,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gro\u00df",
+            "out_points": 1,
+            "in": "Tarkowski",
+            "in_points": 3
+          },
+          {
+            "out": "Jo\u00e3o Pedro",
+            "out_points": 1,
+            "in": "van Ewijk",
+            "in_points": 3
+          }
+        ]
+      },
+      "4": {
+        "actual": 90,
+        "best": 90,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "5": {
+        "actual": 62,
+        "best": 77,
+        "missed": 15,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Rogers",
+            "out_points": 2,
+            "in": "Brobbey",
+            "in_points": 17
+          }
+        ]
+      },
+      "6": {
+        "actual": 72,
+        "best": 75,
+        "missed": 3,
+        "chip": "wildcard",
+        "swaps": [
+          {
+            "out": "Hall",
+            "out_points": 0,
+            "in": "Van Hecke",
+            "in_points": 3
+          }
+        ]
+      },
+      "7": {
+        "actual": 57,
+        "best": 57,
+        "missed": 0,
+        "chip": "3xc",
+        "swaps": []
+      },
+      "8": {
+        "actual": 34,
+        "best": 46,
+        "missed": 12,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gro\u00df",
+            "out_points": 0,
+            "in": "Kinsky",
+            "in_points": 9
+          },
+          {
+            "out": "Cherki",
+            "out_points": 0,
+            "in": "Van Hecke",
+            "in_points": 7
+          },
+          {
+            "out": "Verbruggen",
+            "out_points": 2,
+            "in": "Ajayi",
+            "in_points": 4
+          }
+        ]
+      },
+      "9": {
+        "actual": 59,
+        "best": 69,
+        "missed": 10,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Cherki",
+            "out_points": 1,
+            "in": "Verbruggen",
+            "in_points": 11
+          },
+          {
+            "out": "Kinsky",
+            "out_points": 6,
+            "in": "Calafiori",
+            "in_points": 6
+          }
+        ]
+      },
+      "10": {
+        "actual": 75,
+        "best": 81,
+        "missed": 6,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Rogers",
+            "out_points": 2,
+            "in": "Ajayi",
+            "in_points": 6
+          },
+          {
+            "out": "Haaland",
+            "out_points": 2,
+            "in": "Hall",
+            "in_points": 4
+          }
+        ]
+      }
+    },
+    "7147625": {
+      "1": {
+        "actual": 46,
+        "best": 57,
+        "missed": 11,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Shaw",
+            "out_points": 1,
+            "in": "Verbruggen",
+            "in_points": 6
+          },
+          {
+            "out": "Van Hecke",
+            "out_points": 1,
+            "in": "Vuskovic",
+            "in_points": 6
+          },
+          {
+            "out": "Calvert-Lewin",
+            "out_points": 1,
+            "in": "Diop",
+            "in_points": 2
+          },
+          {
+            "out": "Kinsky",
+            "out_points": 2,
+            "in": "Gro\u00df",
+            "in_points": 2
+          }
+        ]
+      },
+      "2": {
+        "actual": 83,
+        "best": 97,
+        "missed": 14,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Tzolis",
+            "out_points": 0,
+            "in": "Gro\u00df",
+            "in_points": 13
+          },
+          {
+            "out": "Van Hecke",
+            "out_points": 1,
+            "in": "Diop",
+            "in_points": 2
+          }
+        ]
+      },
+      "3": {
+        "actual": 49,
+        "best": 65,
+        "missed": 16,
+        "chip": "3xc",
+        "swaps": [
+          {
+            "out": "Gro\u00df",
+            "out_points": 1,
+            "in": "Van Hecke",
+            "in_points": 8
+          },
+          {
+            "out": "Calvert-Lewin",
+            "out_points": 1,
+            "in": "Kinsky",
+            "in_points": 6
+          },
+          {
+            "out": "Jo\u00e3o Pedro",
+            "out_points": 1,
+            "in": "Tzolis",
+            "in_points": 5
+          },
+          {
+            "out": "Verbruggen",
+            "out_points": 3,
+            "in": "Diop",
+            "in_points": 3
+          }
+        ]
+      },
+      "4": {
+        "actual": 82,
+        "best": 82,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "5": {
+        "actual": 52,
+        "best": 59,
+        "missed": 7,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Calafiori",
+            "out_points": 1,
+            "in": "Verbruggen",
+            "in_points": 6
+          },
+          {
+            "out": "Kinsky",
+            "out_points": 2,
+            "in": "Diop",
+            "in_points": 4
+          }
+        ]
+      },
+      "6": {
+        "actual": 66,
+        "best": 69,
+        "missed": 3,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "B.Fernandes",
+            "out_points": 1,
+            "in": "Shaw",
+            "in_points": 3
+          },
+          {
+            "out": "Ndiaye",
+            "out_points": 1,
+            "in": "Diop",
+            "in_points": 2
+          }
+        ]
+      },
+      "7": {
+        "actual": 66,
+        "best": 67,
+        "missed": 1,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Rogers",
+            "out_points": 2,
+            "in": "Diop",
+            "in_points": 3
+          }
+        ]
+      },
+      "8": {
+        "actual": 29,
+        "best": 35,
+        "missed": 6,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Verbruggen",
+            "out_points": 2,
+            "in": "Kinsky",
+            "in_points": 9
+          }
+        ]
+      },
+      "9": {
+        "actual": 60,
+        "best": 60,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Cherki",
+            "out_points": 1,
+            "in": "Tzolis",
+            "in_points": 3
+          }
+        ]
+      },
+      "10": {
+        "actual": 64,
+        "best": 65,
+        "missed": 1,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Ndiaye",
+            "out_points": 2,
+            "in": "Tzolis",
+            "in_points": 3
+          }
+        ]
+      }
+    },
+    "390134": {
+      "1": {
+        "actual": 74,
+        "best": 74,
+        "missed": 0,
+        "chip": "bboost",
+        "swaps": []
+      },
+      "2": {
+        "actual": 87,
+        "best": 92,
+        "missed": 5,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Tzolis",
+            "out_points": 0,
+            "in": "Gomez",
+            "in_points": 5
+          }
+        ]
+      },
+      "3": {
+        "actual": 30,
+        "best": 39,
+        "missed": 9,
+        "chip": "3xc",
+        "swaps": [
+          {
+            "out": "Wissa",
+            "out_points": 1,
+            "in": "Kinsky",
+            "in_points": 6
+          },
+          {
+            "out": "Jo\u00e3o Pedro",
+            "out_points": 1,
+            "in": "Tzolis",
+            "in_points": 5
+          },
+          {
+            "out": "Verbruggen",
+            "out_points": 3,
+            "in": "O'Shea",
+            "in_points": 3
+          }
+        ]
+      },
+      "4": {
+        "actual": 73,
+        "best": 77,
+        "missed": 4,
+        "chip": "wildcard",
+        "swaps": [
+          {
+            "out": "\u00d8degaard",
+            "out_points": 3,
+            "in": "Muharemovi\u0107",
+            "in_points": 7
+          }
+        ]
+      },
+      "5": {
+        "actual": 32,
+        "best": 39,
+        "missed": 7,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Konsa",
+            "out_points": 1,
+            "in": "Vuskovic",
+            "in_points": 8
+          }
+        ]
+      },
+      "6": {
+        "actual": 67,
+        "best": 70,
+        "missed": 3,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "\u00d8degaard",
+            "out_points": 1,
+            "in": "Konsa",
+            "in_points": 4
+          }
+        ]
+      },
+      "7": {
+        "actual": 52,
+        "best": 55,
+        "missed": 3,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Rogers",
+            "out_points": 2,
+            "in": "Muharemovi\u0107",
+            "in_points": 5
+          }
+        ]
+      },
+      "8": {
+        "actual": 46,
+        "best": 47,
+        "missed": 1,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Palmer",
+            "out_points": -1,
+            "in": "Slater",
+            "in_points": 2
+          }
+        ]
+      },
+      "9": {
+        "actual": 65,
+        "best": 73,
+        "missed": 8,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gibbs-White",
+            "out_points": 2,
+            "in": "De Cuyper",
+            "in_points": 9
+          },
+          {
+            "out": "Gro\u00df",
+            "out_points": 2,
+            "in": "Mendy",
+            "in_points": 3
+          }
+        ]
+      },
+      "10": {
+        "actual": 71,
+        "best": 80,
+        "missed": 9,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Rogers",
+            "out_points": 2,
+            "in": "Muharemovi\u0107",
+            "in_points": 10
+          },
+          {
+            "out": "Manzambi",
+            "out_points": 2,
+            "in": "Mendy",
+            "in_points": 3
+          }
+        ]
+      }
+    },
+    "5021862": {
+      "1": {
+        "actual": 69,
+        "best": 69,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "James",
+            "out_points": 0,
+            "in": "Hall",
+            "in_points": 3
+          },
+          {
+            "out": "Lammens",
+            "out_points": 1,
+            "in": "Kinsky",
+            "in_points": 2
+          }
+        ]
+      },
+      "2": {
+        "actual": 57,
+        "best": 67,
+        "missed": 10,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "James",
+            "out_points": 1,
+            "in": "Hall",
+            "in_points": 11
+          }
+        ]
+      },
+      "3": {
+        "actual": 60,
+        "best": 64,
+        "missed": 4,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Lammens",
+            "out_points": 2,
+            "in": "Kinsky",
+            "in_points": 6
+          }
+        ]
+      },
+      "4": {
+        "actual": 52,
+        "best": 63,
+        "missed": 11,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Hall",
+            "out_points": 0,
+            "in": "Gvardiol",
+            "in_points": 11
+          }
+        ]
+      },
+      "5": {
+        "actual": 61,
+        "best": 61,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Kinsky",
+            "out_points": 2,
+            "in": "Lammens",
+            "in_points": 4
+          }
+        ]
+      },
+      "6": {
+        "actual": 55,
+        "best": 55,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "\u00d8degaard",
+            "out_points": 1,
+            "in": "Kinsky",
+            "in_points": 3
+          },
+          {
+            "out": "Lammens",
+            "out_points": 2,
+            "in": "Semenyo",
+            "in_points": 3
+          }
+        ]
+      },
+      "7": {
+        "actual": 32,
+        "best": 41,
+        "missed": 9,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gvardiol",
+            "out_points": 0,
+            "in": "Tavernier",
+            "in_points": 10
+          }
+        ]
+      },
+      "8": {
+        "actual": 50,
+        "best": 53,
+        "missed": 3,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Palmer",
+            "out_points": -1,
+            "in": "Kinsky",
+            "in_points": 9
+          },
+          {
+            "out": "Raya",
+            "out_points": 7,
+            "in": "Diakit\u00e9",
+            "in_points": 1
+          }
+        ]
+      },
+      "9": {
+        "actual": 60,
+        "best": 71,
+        "missed": 11,
+        "chip": "wildcard",
+        "swaps": [
+          {
+            "out": "McGinn",
+            "out_points": 0,
+            "in": "De Cuyper",
+            "in_points": 9
+          },
+          {
+            "out": "Gro\u00df",
+            "out_points": 2,
+            "in": "Kinsky",
+            "in_points": 6
+          },
+          {
+            "out": "Raya",
+            "out_points": 5,
+            "in": "\u00d8degaard",
+            "in_points": 3
+          }
+        ]
+      },
+      "10": {
+        "actual": 98,
+        "best": 98,
+        "missed": 0,
+        "chip": "bboost",
+        "swaps": []
+      }
+    },
+    "3581128": {
+      "1": {
+        "actual": 59,
+        "best": 59,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Lammens",
+            "out_points": 1,
+            "in": "Kinsky",
+            "in_points": 2
+          },
+          {
+            "out": "Calvert-Lewin",
+            "out_points": 1,
+            "in": "Gro\u00df",
+            "in_points": 2
+          }
+        ]
+      },
+      "2": {
+        "actual": 79,
+        "best": 88,
+        "missed": 9,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Szoboszlai",
+            "out_points": 4,
+            "in": "Gro\u00df",
+            "in_points": 13
+          }
+        ]
+      },
+      "3": {
+        "actual": 35,
+        "best": 42,
+        "missed": 7,
+        "chip": "3xc",
+        "swaps": [
+          {
+            "out": "Aina",
+            "out_points": 1,
+            "in": "Konsa",
+            "in_points": 4
+          },
+          {
+            "out": "Gro\u00df",
+            "out_points": 1,
+            "in": "van Ewijk",
+            "in_points": 3
+          },
+          {
+            "out": "Jo\u00e3o Pedro",
+            "out_points": 1,
+            "in": "Ndiaye",
+            "in_points": 3
+          }
+        ]
+      },
+      "4": {
+        "actual": 75,
+        "best": 75,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "5": {
+        "actual": 44,
+        "best": 44,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Kinsky",
+            "out_points": 2,
+            "in": "Lammens",
+            "in_points": 4
+          }
+        ]
+      },
+      "6": {
+        "actual": 67,
+        "best": 76,
+        "missed": 9,
+        "chip": "wildcard",
+        "swaps": [
+          {
+            "out": "Schade",
+            "out_points": 1,
+            "in": "Verbruggen",
+            "in_points": 9
+          },
+          {
+            "out": "Raya",
+            "out_points": 3,
+            "in": "Gvardiol",
+            "in_points": 4
+          }
+        ]
+      },
+      "7": {
+        "actual": 66,
+        "best": 66,
+        "missed": 0,
+        "chip": "bboost",
+        "swaps": []
+      },
+      "8": {
+        "actual": 47,
+        "best": 47,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gro\u00df",
+            "out_points": 0,
+            "in": "Davis",
+            "in_points": 2
+          },
+          {
+            "out": "Calafiori",
+            "out_points": 1,
+            "in": "Giles",
+            "in_points": 2
+          }
+        ]
+      },
+      "9": {
+        "actual": 49,
+        "best": 60,
+        "missed": 11,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Giles",
+            "out_points": 1,
+            "in": "Verbruggen",
+            "in_points": 11
+          },
+          {
+            "out": "Raya",
+            "out_points": 5,
+            "in": "Calafiori",
+            "in_points": 6
+          }
+        ]
+      },
+      "10": {
+        "actual": 56,
+        "best": 56,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      }
+    },
+    "756483": {
+      "1": {
+        "actual": 48,
+        "best": 50,
+        "missed": 2,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Shaw",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 3
+          }
+        ]
+      },
+      "2": {
+        "actual": 91,
+        "best": 103,
+        "missed": 12,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Tzolis",
+            "out_points": 0,
+            "in": "Thomas",
+            "in_points": 8
+          },
+          {
+            "out": "Shaw",
+            "out_points": 2,
+            "in": "Davis",
+            "in_points": 6
+          }
+        ]
+      },
+      "3": {
+        "actual": 47,
+        "best": 50,
+        "missed": 3,
+        "chip": "3xc",
+        "swaps": [
+          {
+            "out": "Gro\u00df",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 4
+          }
+        ]
+      },
+      "4": {
+        "actual": 64,
+        "best": 76,
+        "missed": 12,
+        "chip": "freehit",
+        "swaps": [
+          {
+            "out": "Isak",
+            "out_points": 2,
+            "in": "Davis",
+            "in_points": 14
+          }
+        ]
+      },
+      "5": {
+        "actual": 54,
+        "best": 60,
+        "missed": 6,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Calafiori",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 9
+          }
+        ]
+      },
+      "6": {
+        "actual": 56,
+        "best": 61,
+        "missed": 5,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Davis",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 4
+          },
+          {
+            "out": "B.Fernandes",
+            "out_points": 1,
+            "in": "Shaw",
+            "in_points": 3
+          }
+        ]
+      },
+      "7": {
+        "actual": 44,
+        "best": 44,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "8": {
+        "actual": 61,
+        "best": 71,
+        "missed": 10,
+        "chip": "wildcard",
+        "swaps": [
+          {
+            "out": "Palmer",
+            "out_points": -1,
+            "in": "Kinsky",
+            "in_points": 9
+          },
+          {
+            "out": "Kelleher",
+            "out_points": 2,
+            "in": "Davis",
+            "in_points": 2
+          }
+        ]
+      },
+      "9": {
+        "actual": 50,
+        "best": 60,
+        "missed": 10,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Foden",
+            "out_points": 1,
+            "in": "Konsa",
+            "in_points": 10
+          },
+          {
+            "out": "Kinsky",
+            "out_points": 6,
+            "in": "Kelleher",
+            "in_points": 7
+          }
+        ]
+      },
+      "10": {
+        "actual": 55,
+        "best": 55,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      }
+    },
+    "518209": {
+      "1": {
+        "actual": 51,
+        "best": 53,
+        "missed": 2,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Maguire",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 3
+          }
+        ]
+      },
+      "2": {
+        "actual": 118,
+        "best": 118,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "3": {
+        "actual": 36,
+        "best": 46,
+        "missed": 10,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gro\u00df",
+            "out_points": 1,
+            "in": "Mendy",
+            "in_points": 8
+          },
+          {
+            "out": "Jo\u00e3o Pedro",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 4
+          }
+        ]
+      },
+      "4": {
+        "actual": 74,
+        "best": 75,
+        "missed": 1,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Thomas",
+            "out_points": 0,
+            "in": "Maguire",
+            "in_points": 1
+          }
+        ]
+      },
+      "5": {
+        "actual": 40,
+        "best": 40,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "6": {
+        "actual": 46,
+        "best": 48,
+        "missed": 2,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Ndiaye",
+            "out_points": 1,
+            "in": "Mendy",
+            "in_points": 3
+          }
+        ]
+      },
+      "7": {
+        "actual": 63,
+        "best": 63,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "8": {
+        "actual": 49,
+        "best": 49,
+        "missed": 0,
+        "chip": "freehit",
+        "swaps": [
+          {
+            "out": "Palmer",
+            "out_points": -1,
+            "in": "Jo\u00e3o Pedro",
+            "in_points": 0
+          }
+        ]
+      },
+      "9": {
+        "actual": 41,
+        "best": 41,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "10": {
+        "actual": 60,
+        "best": 60,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      }
+    },
+    "7009706": {
+      "1": {
+        "actual": 68,
+        "best": 68,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Thiago",
+            "out_points": 0,
+            "in": "Van Hecke",
+            "in_points": 1
+          }
+        ]
+      },
+      "2": {
+        "actual": 71,
+        "best": 78,
+        "missed": 7,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Van Hecke",
+            "out_points": 1,
+            "in": "N.Williams",
+            "in_points": 6
+          },
+          {
+            "out": "Thiago",
+            "out_points": 2,
+            "in": "Ndiaye",
+            "in_points": 4
+          }
+        ]
+      },
+      "3": {
+        "actual": 53,
+        "best": 62,
+        "missed": 9,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Mu\u00f1oz",
+            "out_points": 1,
+            "in": "Van Hecke",
+            "in_points": 8
+          },
+          {
+            "out": "Calafiori",
+            "out_points": 2,
+            "in": "Shaw",
+            "in_points": 4
+          }
+        ]
+      },
+      "4": {
+        "actual": 75,
+        "best": 76,
+        "missed": 1,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gakpo",
+            "out_points": 1,
+            "in": "N.Williams",
+            "in_points": 2
+          }
+        ]
+      },
+      "5": {
+        "actual": 51,
+        "best": 51,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "6": {
+        "actual": 64,
+        "best": 73,
+        "missed": 9,
+        "chip": "freehit",
+        "swaps": [
+          {
+            "out": "Hall",
+            "out_points": 0,
+            "in": "Belloumi",
+            "in_points": 6
+          },
+          {
+            "out": "Gibbs-White",
+            "out_points": 2,
+            "in": "Dasilva",
+            "in_points": 5
+          }
+        ]
+      },
+      "7": {
+        "actual": 48,
+        "best": 50,
+        "missed": 2,
+        "chip": "wildcard",
+        "swaps": [
+          {
+            "out": "Schade",
+            "out_points": 0,
+            "in": "Barry",
+            "in_points": 2
+          }
+        ]
+      },
+      "8": {
+        "actual": 30,
+        "best": 30,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Cherki",
+            "out_points": 0,
+            "in": "Barry",
+            "in_points": 2
+          }
+        ]
+      },
+      "9": {
+        "actual": 49,
+        "best": 63,
+        "missed": 14,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Cherki",
+            "out_points": 1,
+            "in": "Van Hecke",
+            "in_points": 15
+          }
+        ]
+      },
+      "10": {
+        "actual": 60,
+        "best": 68,
+        "missed": 8,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Rogers",
+            "out_points": 2,
+            "in": "Gro\u00df",
+            "in_points": 10
+          }
+        ]
+      }
+    },
+    "2289310": {
+      "1": {
+        "actual": 37,
+        "best": 41,
+        "missed": 4,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Shaw",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 3
+          },
+          {
+            "out": "Calvert-Lewin",
+            "out_points": 1,
+            "in": "R\u00f6hl",
+            "in_points": 3
+          }
+        ]
+      },
+      "2": {
+        "actual": 80,
+        "best": 80,
+        "missed": 0,
+        "chip": "bboost",
+        "swaps": []
+      },
+      "3": {
+        "actual": 43,
+        "best": 53,
+        "missed": 10,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Leno",
+            "out_points": 1,
+            "in": "Kinsky",
+            "in_points": 6
+          },
+          {
+            "out": "Calvert-Lewin",
+            "out_points": 1,
+            "in": "Konsa",
+            "in_points": 4
+          },
+          {
+            "out": "White",
+            "out_points": 2,
+            "in": "Thomas",
+            "in_points": 4
+          }
+        ]
+      },
+      "4": {
+        "actual": 61,
+        "best": 63,
+        "missed": 2,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Kinsky",
+            "out_points": 7,
+            "in": "Leno",
+            "in_points": 9
+          }
+        ]
+      },
+      "5": {
+        "actual": 46,
+        "best": 55,
+        "missed": 9,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Konsa",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 9
+          },
+          {
+            "out": "Kinsky",
+            "out_points": 2,
+            "in": "Leno",
+            "in_points": 3
+          }
+        ]
+      },
+      "6": {
+        "actual": 38,
+        "best": 43,
+        "missed": 5,
+        "chip": "wildcard",
+        "swaps": [
+          {
+            "out": "J.Timber",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 4
+          },
+          {
+            "out": "B.Fernandes",
+            "out_points": 1,
+            "in": "Shaw",
+            "in_points": 3
+          }
+        ]
+      },
+      "7": {
+        "actual": 67,
+        "best": 69,
+        "missed": 2,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "J.Timber",
+            "out_points": 1,
+            "in": "Thomas",
+            "in_points": 3
+          }
+        ]
+      },
+      "8": {
+        "actual": 68,
+        "best": 68,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "9": {
+        "actual": 45,
+        "best": 45,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "10": {
+        "actual": 44,
+        "best": 44,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      }
+    },
+    "1281784": {
+      "1": {
+        "actual": 45,
+        "best": 50,
+        "missed": 5,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "James",
+            "out_points": 0,
+            "in": "Wilson",
+            "in_points": 3
+          },
+          {
+            "out": "Thiago",
+            "out_points": 0,
+            "in": "Isak",
+            "in_points": 2
+          }
+        ]
+      },
+      "2": {
+        "actual": 53,
+        "best": 53,
+        "missed": 0,
+        "chip": null,
+        "swaps": []
+      },
+      "3": {
+        "actual": 52,
+        "best": 53,
+        "missed": 1,
+        "chip": "wildcard",
+        "swaps": [
+          {
+            "out": "Aina",
+            "out_points": 1,
+            "in": "Calafiori",
+            "in_points": 2
+          }
+        ]
+      },
+      "4": {
+        "actual": 55,
+        "best": 71,
+        "missed": 16,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Hall",
+            "out_points": 0,
+            "in": "Mykolenko",
+            "in_points": 11
+          },
+          {
+            "out": "Cherki",
+            "out_points": 1,
+            "in": "Calafiori",
+            "in_points": 6
+          }
+        ]
+      },
+      "5": {
+        "actual": 65,
+        "best": 65,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Wissa",
+            "out_points": 0,
+            "in": "Calafiori",
+            "in_points": 1
+          }
+        ]
+      },
+      "6": {
+        "actual": 51,
+        "best": 66,
+        "missed": 15,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Hall",
+            "out_points": 0,
+            "in": "Jo\u00e3o Pedro",
+            "in_points": 12
+          },
+          {
+            "out": "\u00d8degaard",
+            "out_points": 1,
+            "in": "Gvardiol",
+            "in_points": 4
+          }
+        ]
+      },
+      "7": {
+        "actual": 63,
+        "best": 65,
+        "missed": 2,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gvardiol",
+            "out_points": 0,
+            "in": "Hall",
+            "in_points": 4
+          }
+        ]
+      },
+      "8": {
+        "actual": 28,
+        "best": 28,
+        "missed": 0,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gro\u00df",
+            "out_points": 0,
+            "in": "De Cuyper",
+            "in_points": 1
+          }
+        ]
+      },
+      "9": {
+        "actual": 42,
+        "best": 53,
+        "missed": 11,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Cherki",
+            "out_points": 1,
+            "in": "Mykolenko",
+            "in_points": 6
+          },
+          {
+            "out": "Barcola",
+            "out_points": 1,
+            "in": "Calafiori",
+            "in_points": 6
+          },
+          {
+            "out": "Gvardiol",
+            "out_points": 2,
+            "in": "\u00d8degaard",
+            "in_points": 3
+          }
+        ]
+      },
+      "10": {
+        "actual": 67,
+        "best": 84,
+        "missed": 17,
+        "chip": null,
+        "swaps": [
+          {
+            "out": "Gvardiol",
+            "out_points": 0,
+            "in": "Cherki",
+            "in_points": 9
+          },
+          {
+            "out": "Manzambi",
+            "out_points": 2,
+            "in": "Mykolenko",
+            "in_points": 8
+          },
+          {
+            "out": "Kostoulas",
+            "out_points": 2,
+            "in": "Hall",
+            "in_points": 4
+          }
+        ]
+      }
+    }
+  }
+}

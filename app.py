@@ -81,6 +81,11 @@ PARADE_FILE = "fpl_hits_parade.json"
 # "What if nobody had ever made a transfer" table (GW1 team kept all season)
 GW1_FILE = "fpl_gw1_team.json"
 
+# "Best team v actual team" table: the best XI each manager could have picked
+# from their 15 players each gameweek (worked out once per finished gameweek
+# and saved here so old gameweeks are never looked up again).
+BEST_XI_FILE = "fpl_best_xi.json"
+
 # A transfer that costs a hit is judged on: points in - points out - 4.
 # Set to False to judge on the raw points only (in v out).
 PARADE_DEDUCT_HIT = True
@@ -3194,6 +3199,253 @@ def build_gw1_team_data(league_rows, finished_gw):
 
 
 # ============================================================
+# BEST TEAM v ACTUAL TEAM ("what if they had picked the best XI")
+# ============================================================
+
+def load_best_xi_cache():
+    """Saved best-XI results ({entry: {gameweek: result}})."""
+
+    if not os.path.exists(BEST_XI_FILE):
+        return {"entries": {}}
+
+    try:
+        with open(BEST_XI_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        data.setdefault("entries", {})
+        return data
+
+    except Exception:
+        return {"entries": {}}
+
+
+def save_best_xi_cache(cache):
+    """Save results so finished gameweeks are only worked out once."""
+
+    with open(BEST_XI_FILE, "w", encoding="utf-8") as file:
+        json.dump(cache, file, indent=2)
+
+
+def judge_best_xi(picks_data, live_points, positions, names):
+    """Compare the team a manager actually played with the best team they
+    could have picked from the same 15 players, in one finished gameweek.
+
+    - Actual XI = the starting XI after FPL's automatic subs
+    - Best XI   = the highest-scoring legal XI (1 GK, 3-5 DEF, 2-5 MID,
+                  1-3 FWD) from the 15 players
+    - Captain bonus is NOT counted on either side, so this is purely
+      "benched players v the players you picked"
+    - Bench Boost weeks count all 15 players, so nothing was missed
+
+    Returns None if there are no picks to judge.
+    """
+
+    picks = picks_data.get("picks", [])
+
+    if len(picks) < 15:
+        return None
+
+    def pts(element):
+        return live_points.get(element, 0)
+
+    squad = [p["element"] for p in picks]
+
+    if picks_data.get("active_chip") == "bboost":
+
+        everyone = sum(pts(e) for e in squad)
+
+        return {
+            "actual": everyone,
+            "best": everyone,
+            "missed": 0,
+            "chip": "bboost",
+            "swaps": []
+        }
+
+    subs = picks_data.get("automatic_subs", [])
+
+    subbed_out = {s.get("element_out") for s in subs}
+    subbed_in = {s.get("element_in") for s in subs}
+
+    actual_xi = [
+        p["element"] for p in picks
+        if p.get("position", 0) <= 11 and p["element"] not in subbed_out
+    ]
+
+    actual_xi += [e for e in subbed_in if e in squad]
+
+    actual_set = set(actual_xi)
+    actual = sum(pts(e) for e in actual_xi)
+
+    # Players by position, best first (on a tie, the one they played)
+    by_pos = {1: [], 2: [], 3: [], 4: []}
+
+    for e in squad:
+        by_pos[positions.get(e, 3)].append(e)
+
+    for group in by_pos.values():
+        group.sort(key=lambda e: (-pts(e), 0 if e in actual_set else 1))
+
+    best = None
+
+    for d in range(3, 6):
+        for m in range(2, 6):
+
+            f = 10 - d - m
+
+            if not 1 <= f <= 3:
+                continue
+
+            if (
+                len(by_pos[1]) < 1 or len(by_pos[2]) < d
+                or len(by_pos[3]) < m or len(by_pos[4]) < f
+            ):
+                continue
+
+            xi = (
+                by_pos[1][:1] + by_pos[2][:d]
+                + by_pos[3][:m] + by_pos[4][:f]
+            )
+
+            key = (sum(pts(e) for e in xi), len(actual_set & set(xi)))
+
+            if best is None or key > best[0]:
+                best = (key, xi)
+
+    if best is None:
+        return None
+
+    best_total = max(best[0][0], actual)
+    best_xi = best[1]
+
+    out_list = sorted(
+        [e for e in actual_xi if e not in best_xi], key=pts
+    )
+    in_list = sorted(
+        [e for e in best_xi if e not in actual_set],
+        key=lambda e: -pts(e)
+    )
+
+    swaps = [
+        {
+            "out": names.get(o, "Unknown"),
+            "out_points": pts(o),
+            "in": names.get(i, "Unknown"),
+            "in_points": pts(i)
+        }
+        for o, i in zip(out_list, in_list)
+    ]
+
+    return {
+        "actual": actual,
+        "best": best_total,
+        "missed": best_total - actual,
+        "chip": picks_data.get("active_chip"),
+        "swaps": swaps
+    }
+
+
+def build_best_xi_data(league_rows, finished_gw):
+    """Every manager, every finished gameweek: points scored by the team
+    they played v the best team they could have picked."""
+
+    cache = load_best_xi_cache()
+    positions = get_player_positions()
+    names = get_player_names()
+
+    live_cache = {}
+    changed = False
+
+    managers = []
+
+    for row in league_rows:
+
+        entry_id = row.get("entry")
+
+        store = cache["entries"].setdefault(str(entry_id), {})
+
+        gws = {}
+
+        for gw in range(1, finished_gw + 1):
+
+            saved = store.get(str(gw))
+
+            if saved is None:
+
+                if gw not in live_cache:
+                    live_cache[gw] = get_live_points(gw)
+
+                if not live_cache[gw]:
+                    break    # FPL didn't answer - try again next time
+
+                saved = judge_best_xi(
+                    get_manager_picks(entry_id, gw),
+                    live_cache[gw], positions, names
+                )
+
+                if saved is None:
+                    continue
+
+                store[str(gw)] = saved
+                changed = True
+
+            gws[str(gw)] = saved
+
+        total_missed = sum(g["missed"] for g in gws.values())
+
+        worst_gw = None
+        worst_missed = 0
+
+        for gw, g in gws.items():
+            if g["missed"] > worst_missed:
+                worst_gw = int(gw)
+                worst_missed = g["missed"]
+
+        managers.append({
+            "entry": entry_id,
+            "manager": row.get("player_name", "Unknown Manager"),
+            "team": row.get("entry_name", "Unknown Team"),
+            "gws": gws,
+            "total_missed": total_missed,
+            "worst_gw": worst_gw,
+            "worst_missed": worst_missed
+        })
+
+    if changed:
+        try:
+            save_best_xi_cache(cache)
+        except Exception:
+            pass
+
+    managers.sort(key=lambda m: (-m["total_missed"], m["manager"]))
+
+    return {
+        "finished_gw": finished_gw,
+        "updated": datetime.now().strftime("%d %b %Y %H:%M"),
+        "managers": managers
+    }
+
+
+@app.route("/api/best-xi")
+def api_best_xi():
+    """Best team v actual team, every manager, every finished gameweek."""
+
+    try:
+        league_name, standings = get_league()
+        finished_gw = get_current_gameweek()
+
+        rows, _ = get_league_rows(standings, finished_gw)
+
+        return jsonify(build_best_xi_data(rows, finished_gw))
+
+    except Exception as error:
+
+        return jsonify({
+            "error": str(error)
+        }), 500
+
+
+# ============================================================
 # CURRY TABLE (every gameweek, period winners, who owes a curry)
 # ============================================================
 
@@ -5058,6 +5310,36 @@ button:hover {
                     margin-bottom: 15px;">
 
             <h2 style="margin: 0;">
+                🔄 Best Team v Actual Team
+            </h2>
+
+            <button onclick="downloadBestXiPng()">
+                📸 SAVE BEST TEAM TABLE AS PNG
+            </button>
+
+        </div>
+
+        <div class="chip-note">
+            For every finished gameweek: the highest-scoring legal XI each
+            manager could have picked from their own 15 players, and how
+            many points they missed by not playing it. Captain bonus isn't
+            counted either way, and Bench Boost weeks show BB (all 15
+            counted). The first load can take a minute while old
+            gameweeks are worked out.
+        </div>
+
+        <div id="bestXi" style="overflow-x: auto;"></div>
+
+    </div>
+
+
+    <div class="chart-card">
+
+        <div style="display: flex; justify-content: space-between;
+                    align-items: center; flex-wrap: wrap; gap: 10px;
+                    margin-bottom: 15px;">
+
+            <h2 style="margin: 0;">
                 🍛 Curry Table
             </h2>
 
@@ -5257,6 +5539,7 @@ function renderDashboard(data) {
     );
 
     loadGw1Team();
+    loadBestXi();
     loadCurryTable();
 }
 
@@ -6367,6 +6650,538 @@ function renderGw1Team(data) {
 
         </table>
     `;
+}
+
+
+/* ==========================================================
+   BEST TEAM v ACTUAL TEAM
+   ========================================================== */
+
+let lastBestXiData = null;
+let bestXiGw = null;
+
+async function loadBestXi() {
+
+    const box = document.getElementById("bestXi");
+
+    if (!box.innerHTML.trim()) {
+        box.innerHTML =
+            `<div class="chip-note">Working out the best teams...</div>`;
+    }
+
+    try {
+
+        const response = await fetch("/api/best-xi");
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        lastBestXiData = data;
+
+        if (!bestXiGw || bestXiGw > data.finished_gw) {
+            bestXiGw = data.finished_gw;
+        }
+
+        renderBestXi(data);
+
+    } catch (error) {
+
+        console.error(error);
+
+        box.innerHTML =
+            `<div class="chip-note">Couldn't load this table: `
+            + `${escapeHtml(error.message)}</div>`;
+    }
+}
+
+function changeBestXiGw(value) {
+
+    bestXiGw = parseInt(value, 10);
+
+    if (lastBestXiData) {
+        renderBestXi(lastBestXiData);
+    }
+}
+
+// Managers sorted by how much they missed in one gameweek
+function bestXiForGw(data, gw) {
+
+    return data.managers
+        .map(m => ({ m: m, g: m.gws[String(gw)] }))
+        .filter(x => x.g)
+        .sort((a, b) =>
+            b.g.missed - a.g.missed
+            || a.m.manager.localeCompare(b.m.manager)
+        );
+}
+
+function renderBestXi(data) {
+
+    const box = document.getElementById("bestXi");
+
+    if (!data.finished_gw) {
+        box.innerHTML =
+            `<div class="chip-note">No finished gameweeks yet.</div>`;
+        return;
+    }
+
+    let head = "";
+
+    for (let gw = 1; gw <= data.finished_gw; gw++) {
+        head += `<th>GW${gw}</th>`;
+    }
+
+    let rows = "";
+
+    data.managers.forEach((m, index) => {
+
+        let cells = "";
+
+        for (let gw = 1; gw <= data.finished_gw; gw++) {
+
+            const g = m.gws[String(gw)];
+
+            if (!g) {
+                cells += `<td style="color: #5d776c;">—</td>`;
+            } else if (g.chip === "bboost") {
+                cells += `<td style="color: #a9c5b9;">BB</td>`;
+            } else if (g.missed === 0) {
+                cells += `<td style="color: #00ff87;">✓</td>`;
+            } else {
+                cells += `<td style="color: #ff4d6d; font-weight: 900;">`
+                       + `-${g.missed}</td>`;
+            }
+        }
+
+        const worst = m.worst_gw
+            ? `GW${m.worst_gw} (-${m.worst_missed})`
+            : "—";
+
+        rows += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>
+                    <strong>${escapeHtml(m.manager)}</strong>
+                    <div class="hits-weeks">${escapeHtml(m.team)}</div>
+                </td>
+                <td style="color: #ff4d6d; font-weight: 900;">
+                    ${m.total_missed > 0 ? "-" + m.total_missed : "0"}
+                </td>
+                <td>${worst}</td>
+                ${cells}
+            </tr>
+        `;
+    });
+
+    // ---- the best team for one chosen gameweek ----
+    let options = "";
+
+    for (let gw = data.finished_gw; gw >= 1; gw--) {
+        options += `<option value="${gw}"`
+                 + (gw === bestXiGw ? " selected" : "")
+                 + `>GW${gw}</option>`;
+    }
+
+    let detail = "";
+
+    bestXiForGw(data, bestXiGw).forEach(x => {
+
+        const g = x.g;
+
+        let lines = "";
+
+        if (g.chip === "bboost") {
+
+            lines = `<div class="hits-weeks">Bench Boost week - `
+                  + `all 15 players counted</div>`;
+
+        } else if (!g.swaps.length) {
+
+            lines = `<div style="color: #00ff87;">`
+                  + `✅ Picked the best team</div>`;
+
+        } else {
+
+            lines = g.swaps.map(s =>
+                `<div>`
+                + `<span style="color: #ff4d6d;">${escapeHtml(s.out)}`
+                + ` (${s.out_points})</span> → `
+                + `<span style="color: #00ff87;">${escapeHtml(s.in)}`
+                + ` (${s.in_points})</span> `
+                + `<span class="hits-weeks">`
+                + `+${s.in_points - s.out_points}</span></div>`
+            ).join("");
+        }
+
+        detail += `
+            <tr>
+                <td>
+                    <strong>${escapeHtml(x.m.manager)}</strong>
+                    <div class="hits-weeks">${escapeHtml(x.m.team)}</div>
+                </td>
+                <td>${g.actual}</td>
+                <td style="color: #00ff87; font-weight: 900;">${g.best}</td>
+                <td style="color: #ff4d6d; font-weight: 900;">
+                    ${g.missed > 0 ? "-" + g.missed : "0"}
+                </td>
+                <td>${lines}</td>
+            </tr>
+        `;
+    });
+
+    box.innerHTML = `
+        <table class="hits-table curry-table">
+            <tr>
+                <th>#</th>
+                <th>MANAGER</th>
+                <th>TOTAL MISSED</th>
+                <th>WORST WEEK</th>
+                ${head}
+            </tr>
+            ${rows}
+        </table>
+
+        <div style="display: flex; align-items: center; gap: 12px;
+                    margin: 25px 0 10px; flex-wrap: wrap;">
+            <h3 style="margin: 0;">Best team for</h3>
+            <select onchange="changeBestXiGw(this.value)"
+                    style="padding: 8px 12px; border-radius: 8px;
+                           background: #0D3024; color: #FFFFFF;
+                           border: 1px solid rgba(0, 255, 135, 0.3);
+                           font-size: 15px;">
+                ${options}
+            </select>
+        </div>
+
+        <table class="hits-table">
+            <tr>
+                <th>MANAGER</th>
+                <th>SCORED</th>
+                <th>BEST XI</th>
+                <th>MISSED</th>
+                <th>CHANGES THEY SHOULD HAVE MADE</th>
+            </tr>
+            ${detail}
+        </table>
+    `;
+}
+
+
+function downloadBestXiPng() {
+
+    if (!lastBestXiData || !lastBestXiData.finished_gw) {
+
+        alert("The best team table hasn't loaded yet.");
+
+        return;
+    }
+
+    const data = lastBestXiData;
+    const n = data.finished_gw;
+    const pickedGw = bestXiGw || n;
+
+    const green = "#00FF87";
+    const dark = "#061A14";
+    const rowBg = "#0D3024";
+    const white = "#FFFFFF";
+    const grey = "#9AB3A8";
+    const red = "#FF4D6D";
+    const font = "Arial, Helvetica, sans-serif";
+
+    const S = 2;
+    const pad = 40;
+
+    const rankW = 40;
+    const nameW = 250;
+    const totalW = 110;
+    const worstW = 130;
+    const gwW = 50;
+
+    const tableW = rankW + nameW + totalW + worstW + n * gwW;
+
+    const W = Math.max(tableW + pad * 2, 1300);
+
+    const rowH = 50;
+    const gap = 4;
+    const headerH = 120;
+    const colHeadH = 40;
+
+    const detail = bestXiForGw(data, pickedGw);
+
+    const lineH = 24;
+
+    const detailH = detail.reduce(
+        (sum, x) => sum + 46 + Math.max(1, x.g.swaps.length) * lineH, 0
+    );
+
+    const legendH = 70;
+    const footerH = 70;
+
+    const H = headerH + 25 + colHeadH
+            + data.managers.length * (rowH + gap)
+            + 45 + 40 + detailH
+            + legendH + footerH;
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = W * S;
+    canvas.height = H * S;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.scale(S, S);
+    ctx.textBaseline = "alphabetic";
+
+    // Background + header
+    ctx.fillStyle = dark;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = green;
+    ctx.fillRect(0, 0, W, headerH);
+
+    ctx.fillStyle = dark;
+    ctx.textAlign = "left";
+    ctx.font = `bold 46px ${font}`;
+    ctx.fillText("🔄 BEST TEAM v ACTUAL TEAM", pad, 64);
+
+    ctx.font = `18px ${font}`;
+    ctx.fillText(
+        `Points missed by not playing the best XI from your 15  •  GW1-${n}`,
+        pad + 4,
+        100
+    );
+
+    // Column headings
+    let y = headerH + 25;
+
+    const x0 = pad;
+    const nameX = x0 + rankW;
+    const totalX = nameX + nameW;
+    const worstX = totalX + totalW;
+    const firstGwX = worstX + worstW;
+
+    ctx.fillStyle = grey;
+    ctx.font = `bold 13px ${font}`;
+
+    ctx.textAlign = "center";
+    ctx.fillText("#", x0 + rankW / 2, y + 26);
+
+    ctx.textAlign = "left";
+    ctx.fillText("MANAGER", nameX, y + 26);
+
+    ctx.textAlign = "center";
+    ctx.fillText("TOTAL", totalX + totalW / 2, y + 20);
+    ctx.fillText("MISSED", totalX + totalW / 2, y + 35);
+    ctx.fillText("WORST WEEK", worstX + worstW / 2, y + 26);
+
+    for (let i = 0; i < n; i++) {
+        ctx.fillText(`GW${i + 1}`, firstGwX + i * gwW + gwW / 2, y + 26);
+    }
+
+    y += colHeadH;
+
+    // Table rows
+    data.managers.forEach((m, index) => {
+
+        ctx.fillStyle = rowBg;
+        ctx.beginPath();
+        ctx.roundRect(x0, y, tableW, rowH, 10);
+        ctx.fill();
+
+        ctx.textAlign = "center";
+        ctx.fillStyle = white;
+        ctx.font = `bold 18px ${font}`;
+        ctx.fillText(String(index + 1), x0 + rankW / 2, y + 31);
+
+        ctx.textAlign = "left";
+        ctx.fillStyle = white;
+        ctx.font = `bold 18px ${font}`;
+        ctx.fillText(fitText(ctx, m.manager, nameW - 14), nameX, y + 23);
+
+        ctx.fillStyle = grey;
+        ctx.font = `12px ${font}`;
+        ctx.fillText(fitText(ctx, m.team, nameW - 14), nameX, y + 40);
+
+        ctx.textAlign = "center";
+
+        ctx.fillStyle = m.total_missed > 0 ? red : green;
+        ctx.font = `bold 22px ${font}`;
+        ctx.fillText(
+            m.total_missed > 0 ? `-${m.total_missed}` : "0",
+            totalX + totalW / 2,
+            y + 32
+        );
+
+        ctx.fillStyle = white;
+        ctx.font = `15px ${font}`;
+        ctx.fillText(
+            m.worst_gw ? `GW${m.worst_gw} (-${m.worst_missed})` : "—",
+            worstX + worstW / 2,
+            y + 31
+        );
+
+        for (let i = 0; i < n; i++) {
+
+            const g = m.gws[String(i + 1)];
+
+            let text = "—";
+            let colour = "#5d776c";
+
+            if (g && g.chip === "bboost") {
+                text = "BB";
+                colour = "#a9c5b9";
+            } else if (g && g.missed === 0) {
+                text = "✓";
+                colour = green;
+            } else if (g) {
+                text = `-${g.missed}`;
+                colour = red;
+            }
+
+            ctx.fillStyle = colour;
+            ctx.font = g && g.missed > 0 ? `bold 15px ${font}` : `15px ${font}`;
+            ctx.fillText(text, firstGwX + i * gwW + gwW / 2, y + 31);
+        }
+
+        y += rowH + gap;
+    });
+
+    // Best team for the chosen gameweek
+    y += 30;
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = white;
+    ctx.font = `bold 24px ${font}`;
+    ctx.fillText(`BEST TEAM FOR GW${pickedGw}`, pad, y + 12);
+
+    y += 40;
+
+    detail.forEach(x => {
+
+        const g = x.g;
+
+        const h = 40 + Math.max(1, g.swaps.length) * lineH;
+
+        ctx.fillStyle = rowBg;
+        ctx.beginPath();
+        ctx.roundRect(pad, y, W - pad * 2, h, 10);
+        ctx.fill();
+
+        ctx.textAlign = "left";
+        ctx.fillStyle = white;
+        ctx.font = `bold 18px ${font}`;
+        ctx.fillText(fitText(ctx, x.m.manager, 300), pad + 20, y + 28);
+
+        ctx.fillStyle = grey;
+        ctx.font = `15px ${font}`;
+        ctx.fillText(
+            `scored ${g.actual}  •  best XI ${g.best}`,
+            pad + 330,
+            y + 28
+        );
+
+        ctx.textAlign = "right";
+        ctx.fillStyle = g.missed > 0 ? red : green;
+        ctx.font = `bold 20px ${font}`;
+        ctx.fillText(
+            g.missed > 0 ? `-${g.missed}` : "0",
+            W - pad - 20,
+            y + 28
+        );
+
+        ctx.textAlign = "left";
+
+        if (g.chip === "bboost") {
+
+            ctx.fillStyle = "#a9c5b9";
+            ctx.font = `15px ${font}`;
+            ctx.fillText(
+                "Bench Boost week - all 15 players counted",
+                pad + 20,
+                y + 54
+            );
+
+        } else if (!g.swaps.length) {
+
+            ctx.fillStyle = green;
+            ctx.font = `15px ${font}`;
+            ctx.fillText("✅ Picked the best team", pad + 20, y + 54);
+
+        } else {
+
+            g.swaps.forEach((s, i) => {
+
+                const ly = y + 54 + i * lineH;
+
+                ctx.fillStyle = red;
+                ctx.font = `15px ${font}`;
+                ctx.fillText(`${s.out} (${s.out_points})`, pad + 20, ly);
+
+                ctx.fillStyle = white;
+                ctx.fillText("→", pad + 230, ly);
+
+                ctx.fillStyle = green;
+                ctx.fillText(`${s.in} (${s.in_points})`, pad + 260, ly);
+
+                ctx.fillStyle = grey;
+                ctx.fillText(
+                    `+${s.in_points - s.out_points}`,
+                    pad + 470,
+                    ly
+                );
+            });
+        }
+
+        y += h + 6;
+    });
+
+    // Legend + footer
+    ctx.textAlign = "left";
+    ctx.fillStyle = grey;
+    ctx.font = `14px ${font}`;
+
+    ctx.fillText(
+        "Best XI = highest-scoring legal XI from their own 15 players  •  "
+        + "✓ = picked the best team  •  BB = Bench Boost week",
+        pad,
+        y + 25
+    );
+
+    ctx.fillText(
+        "Captain bonus isn't counted either way  •  "
+        + "-N = points missed by not playing the bench",
+        pad,
+        y + 49
+    );
+
+    ctx.fillText(
+        `Updated: ${new Date().toLocaleString()}`,
+        pad,
+        H - 38
+    );
+
+    ctx.fillStyle = green;
+    ctx.fillText("Fantasy Premier League Mini League", pad, H - 16);
+
+    // Download
+    canvas.toBlob(blob => {
+
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = `FPL_Best_Team_GW${pickedGw}.png`;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(url);
+
+    }, "image/png");
 }
 
 
