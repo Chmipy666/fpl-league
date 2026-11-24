@@ -5,6 +5,7 @@ import os
 import time
 import math
 import itertools
+import random
 import threading
 from datetime import datetime, timezone
 from io import BytesIO
@@ -5173,6 +5174,10 @@ button:hover {
     🤡 HITS TRACKER
 </button>
 
+    <button onclick="window.location.href = '/millionaire'">
+    💰 MILLIONAIRE GAME
+</button>
+
 </div>
 
 
@@ -8375,6 +8380,1677 @@ setInterval(function () {
 
 </html>
 """
+
+
+MILLIONAIRE_HTML = r"""
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Who Wants to Be a Millionaire? - FPL League Edition</title>
+
+<style>
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #FFFFFF;
+    min-height: 100vh;
+    background: radial-gradient(circle at top, #0b2a73 0%, #06143a 55%, #020818 100%);
+}
+
+.wrap { max-width: 1100px; margin: auto; padding: 18px; }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; }
+
+.back { color: #00ff87; text-decoration: none; font-weight: 800; }
+
+button {
+    border: 0;
+    border-radius: 12px;
+    padding: 12px 20px;
+    background: #00ff87;
+    color: #04120d;
+    font-weight: 800;
+    font-size: 15px;
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+button:hover:not(:disabled) { transform: translateY(-2px); }
+button:disabled { opacity: 0.4; cursor: default; }
+
+h1 {
+    text-align: center;
+    margin: 8px 0 2px;
+    font-size: 34px;
+    letter-spacing: 1px;
+    color: #ffd700;
+    text-shadow: 0 0 18px rgba(255, 215, 0, 0.45);
+}
+
+.sub { text-align: center; color: #b9c8ff; margin-bottom: 18px; font-weight: 700; }
+
+.card {
+    background: rgba(8, 20, 60, 0.92);
+    border: 2px solid #4f6fd8;
+    border-radius: 18px;
+    padding: 26px;
+    text-align: center;
+    max-width: 700px;
+    margin: 20px auto;
+}
+
+.card h2 { margin-top: 0; color: #ffd700; }
+
+.card p { color: #c9d4ff; line-height: 1.5; }
+
+.rules { text-align: left; display: inline-block; color: #c9d4ff; line-height: 1.7; }
+
+.msg { color: #b9c8ff; margin: 12px 0; min-height: 22px; }
+
+.big { font-size: 18px; padding: 15px 34px; }
+
+.layout { display: grid; grid-template-columns: 1fr 240px; gap: 18px; }
+
+@media (max-width: 850px) {
+    .layout { grid-template-columns: 1fr; }
+    .ladder { order: -1; }
+    h1 { font-size: 26px; }
+}
+
+.lifelines { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+
+.life {
+    background: #0a1f66;
+    color: #ffd700;
+    border: 2px solid #ffd700;
+    border-radius: 30px;
+    padding: 10px 18px;
+}
+
+.life.used { opacity: 0.35; text-decoration: line-through; pointer-events: none; }
+
+.qnum { text-align: center; color: #ffd700; font-weight: 800; margin-bottom: 8px; letter-spacing: 1px; }
+
+.qbox {
+    background: linear-gradient(#10358f, #081b4d);
+    border: 3px solid #c9d6ff;
+    border-radius: 40px;
+    padding: 26px 30px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.35;
+    min-height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.answers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+
+@media (max-width: 650px) { .answers { grid-template-columns: 1fr; } }
+
+.ans {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    text-align: left;
+    background: linear-gradient(#10358f, #081b4d);
+    color: #FFFFFF;
+    border: 2px solid #c9d6ff;
+    border-radius: 40px;
+    padding: 14px 22px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.ans .letter { color: #ffd700; font-weight: 900; }
+
+.ans.selected { background: linear-gradient(#ffb300, #cc7a00); color: #111; border-color: #fff; }
+.ans.selected .letter { color: #111; }
+.ans.locked { animation: blink 0.4s infinite alternate; }
+.ans.correct { background: linear-gradient(#18c964, #0a7a3a); border-color: #fff; color: #fff; }
+.ans.correct .letter { color: #fff; }
+.ans.wrong { background: linear-gradient(#e0334c, #8d1020); border-color: #fff; color: #fff; }
+.ans.wrong .letter { color: #fff; }
+.ans.removed { visibility: hidden; }
+
+@keyframes blink { from { filter: brightness(1); } to { filter: brightness(1.4); } }
+
+.actions { display: flex; gap: 12px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+
+.gold { background: #ffd700; color: #111; }
+.grey { background: #3a4a85; color: #fff; }
+
+.note { text-align: center; color: #b9c8ff; margin-top: 14px; min-height: 22px; font-weight: 700; }
+
+.panel { margin-top: 14px; }
+
+.box {
+    background: rgba(4, 12, 40, 0.85);
+    border: 2px solid #4f6fd8;
+    border-radius: 16px;
+    padding: 14px;
+    margin-top: 12px;
+    text-align: center;
+}
+
+.box h3 { margin: 0 0 10px; color: #ffd700; }
+
+.aud { display: flex; gap: 16px; justify-content: center; align-items: flex-end; height: 190px; }
+
+.bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 70px; height: 100%; }
+
+.bar {
+    width: 100%;
+    height: 0;
+    min-height: 2px;
+    background: linear-gradient(#ffd700, #ff9d00);
+    border-radius: 6px 6px 0 0;
+    transition: height 1.3s ease;
+}
+
+.pct { font-weight: 900; margin-bottom: 4px; }
+
+.bar-letter { margin-top: 6px; font-weight: 900; color: #ffd700; }
+
+.phone { text-align: left; line-height: 1.5; min-height: 70px; }
+
+.phone .who { color: #00ff87; font-weight: 800; }
+
+.ladder {
+    background: rgba(4, 12, 40, 0.85);
+    border: 2px solid #4f6fd8;
+    border-radius: 16px;
+    padding: 10px;
+    align-self: start;
+}
+
+.rung {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-weight: 800;
+    color: #ff9d00;
+}
+
+.rung.safe { color: #FFFFFF; }
+.rung.done { color: #4be08a; }
+.rung.current { background: #ff9d00; color: #111; }
+
+.final-amount { font-size: 48px; color: #ffd700; font-weight: 900; margin: 10px 0; }
+
+</style>
+
+</head>
+
+<body>
+
+<div class="wrap">
+
+    <div class="topbar">
+        <a class="back" href="/">&larr; Back to the dashboard</a>
+        <button class="grey" id="soundBtn" onclick="toggleSound()">🔊 Sound on</button>
+    </div>
+
+    <h1>💰 WHO WANTS TO BE A MILLIONAIRE?</h1>
+    <div class="sub">FPL League Edition</div>
+
+    <div id="screenStart" class="card">
+
+        <h2>Welcome to the hot seat!</h2>
+
+        <p>Fifteen questions, every one made from your own league's data.
+        Get them all right to win <strong>£1,000,000</strong>.</p>
+
+        <div class="rules">
+            ✅ Safe havens at <strong>£1,000</strong> and <strong>£32,000</strong><br>
+            ✂️ <strong>50:50</strong> removes two wrong answers<br>
+            👥 <strong>Ask the Audience</strong> shows how the crowd voted<br>
+            📞 <strong>Phone a Friend</strong> rings someone from the league<br>
+            🚶 You can walk away with your winnings at any time
+        </div>
+
+        <div class="msg" id="startMsg">Loading questions...</div>
+
+        <button class="big" id="startBtn" onclick="startGame()" disabled>START GAME</button>
+        <button class="grey" id="retryBtn" style="display: none;" onclick="loadQuestions()">TRY AGAIN</button>
+
+    </div>
+
+    <div id="screenGame" style="display: none;">
+
+        <div class="layout">
+
+            <div>
+
+                <div class="lifelines">
+                    <button class="life" id="lifeFifty" onclick="useFifty()">✂️ 50:50</button>
+                    <button class="life" id="lifeAudience" onclick="useAudience()">👥 Ask the Audience</button>
+                    <button class="life" id="lifePhone" onclick="usePhone()">📞 Phone a Friend</button>
+                </div>
+
+                <div class="qnum" id="qnum"></div>
+
+                <div class="qbox" id="qtext"></div>
+
+                <div class="answers" id="answers"></div>
+
+                <div class="actions">
+                    <button class="gold" id="finalBtn" onclick="finalAnswer()" disabled>FINAL ANSWER</button>
+                    <button class="grey" id="walkBtn" onclick="walkAway()">🚶 WALK AWAY</button>
+                    <button class="gold" id="nextBtn" style="display: none;" onclick="nextQuestion()">NEXT QUESTION ▶</button>
+                    <button class="gold" id="resultBtn" style="display: none;" onclick="finishLoss()">SEE RESULT</button>
+                </div>
+
+                <div class="note" id="noteBox"></div>
+
+                <div class="panel" id="panel"></div>
+
+            </div>
+
+            <div class="ladder" id="ladder"></div>
+
+        </div>
+
+    </div>
+
+    <div id="screenEnd" class="card" style="display: none;">
+
+        <h2 id="endTitle"></h2>
+
+        <div class="final-amount" id="endAmount"></div>
+
+        <p id="endText"></p>
+
+        <button class="big" onclick="playAgain()">PLAY AGAIN</button>
+        <a href="/"><button class="grey">DASHBOARD</button></a>
+
+    </div>
+
+</div>
+
+<script>
+
+const PRIZES = [
+    100, 200, 300, 500, 1000,
+    2000, 4000, 8000, 16000, 32000,
+    64000, 125000, 250000, 500000, 1000000
+];
+
+const SAFE_AT = [4, 9];
+
+const LETTERS = ["A", "B", "C", "D"];
+
+// How likely the crowd / your friend are to know the answer, by question
+const AUDIENCE_BASE = [90, 86, 82, 78, 72, 66, 60, 55, 50, 46, 42, 38, 35, 33, 31];
+const AUDIENCE_WRONG = [0, 0, 0, 0.02, 0.04, 0.07, 0.1, 0.13, 0.16, 0.2, 0.24, 0.28, 0.32, 0.36, 0.4];
+const FRIEND_KNOWS = [0.97, 0.95, 0.93, 0.9, 0.86, 0.8, 0.74, 0.68, 0.62, 0.56, 0.5, 0.45, 0.4, 0.36, 0.32];
+
+let loaded = null;
+let game = null;
+let soundOn = true;
+let audioCtx = null;
+let typer = null;
+
+function $(id) { return document.getElementById(id); }
+
+function money(n) { return "£" + n.toLocaleString("en-GB"); }
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function rand(n) { return Math.floor(Math.random() * n); }
+
+function pickOne(list) { return list[rand(list.length)]; }
+
+function shuffled(list) {
+    const copy = list.slice();
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = rand(i + 1);
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}
+
+function show(screen) {
+    ["screenStart", "screenGame", "screenEnd"].forEach(id => {
+        $(id).style.display = id === screen ? "block" : "none";
+    });
+}
+
+
+/* ---------- sound ---------- */
+
+function tone(freq, start, dur, type, vol) {
+
+    if (!soundOn) {
+        return;
+    }
+
+    try {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const t0 = audioCtx.currentTime + start;
+
+        osc.type = type || "sine";
+        osc.frequency.value = freq;
+
+        gain.gain.setValueAtTime(vol || 0.12, t0);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(t0);
+        osc.stop(t0 + dur);
+    } catch (e) {
+        // sound is optional
+    }
+}
+
+function playClick() { tone(660, 0, 0.08, "square", 0.06); }
+function playLifeline() { tone(880, 0, 0.12, "triangle"); tone(1175, 0.12, 0.18, "triangle"); }
+
+function playCorrect() {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.13, 0.28, "triangle", 0.15));
+}
+
+function playWrong() {
+    tone(160, 0, 0.6, "sawtooth", 0.18);
+    tone(110, 0.3, 0.9, "sawtooth", 0.18);
+}
+
+function playWin() {
+    [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, i * 0.15, 0.3, "triangle", 0.16));
+}
+
+function toggleSound() {
+    soundOn = !soundOn;
+    $("soundBtn").textContent = soundOn ? "🔊 Sound on" : "🔇 Sound off";
+}
+
+
+/* ---------- lifeline logic (kept separate from the page) ---------- */
+
+// Votes for the options still in play; always adds up to 100
+function audienceVotes(level, correct, alive) {
+
+    const wrongAlive = alive.filter(i => i !== correct);
+
+    let favourite = correct;
+
+    if (wrongAlive.length && Math.random() < AUDIENCE_WRONG[level]) {
+        favourite = pickOne(wrongAlive);
+    }
+
+    let favPct = AUDIENCE_BASE[level] + Math.round((Math.random() - 0.5) * 10);
+
+    if (alive.length === 2) {
+        favPct = Math.round(favPct + (100 - favPct) * 0.55);
+    }
+
+    if (favourite !== correct) {
+        favPct = Math.round(favPct * 0.75);
+    }
+
+    favPct = clamp(favPct, 30, 94);
+
+    const rest = alive.filter(i => i !== favourite);
+    const weights = rest.map(() => 0.3 + Math.random());
+    const weightTotal = weights.reduce((a, b) => a + b, 0);
+    const remaining = 100 - favPct;
+
+    const votes = [0, 0, 0, 0];
+
+    let given = 0;
+
+    rest.forEach((option, k) => {
+        const value = k === rest.length - 1
+            ? Math.max(0, remaining - given)
+            : Math.round(remaining * weights[k] / weightTotal);
+        votes[option] = value;
+        given += value;
+    });
+
+    votes[favourite] = 100 - given;
+
+    return votes;
+}
+
+// What the friend says: who they back and how sure they sound
+function phoneAdvice(level, correct, alive) {
+
+    const wrongAlive = alive.filter(i => i !== correct);
+    const roll = Math.random();
+    const knows = FRIEND_KNOWS[level];
+
+    let pick;
+    let confidence;
+
+    if (roll < knows || !wrongAlive.length) {
+        pick = correct;
+        confidence = clamp(95 - level * 2 - rand(15), 55, 98);
+    } else if (roll < knows + (1 - knows) * 0.55) {
+        pick = pickOne(wrongAlive);
+        confidence = clamp(80 - rand(30), 45, 85);
+    } else {
+        pick = pickOne(alive);
+        confidence = clamp(45 - rand(20), 20, 50);
+    }
+
+    return { pick: pick, confidence: confidence };
+}
+
+function aliveOptions() {
+    return [0, 1, 2, 3].filter(i => !game.removed.includes(i));
+}
+
+
+/* ---------- loading ---------- */
+
+async function loadQuestions() {
+
+    $("startBtn").disabled = true;
+    $("retryBtn").style.display = "none";
+    $("startMsg").textContent = "Loading questions from the league data...";
+
+    try {
+
+        const response = await fetch("/api/millionaire");
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        loaded = data;
+
+        $("startMsg").textContent =
+            `${data.league_name} • built from the league data up to GW${data.finished_gw}`;
+
+        $("startBtn").disabled = false;
+
+    } catch (error) {
+
+        $("startMsg").textContent = "Couldn't load the questions: " + error.message;
+        $("retryBtn").style.display = "inline-block";
+    }
+}
+
+
+/* ---------- the game ---------- */
+
+function startGame() {
+
+    if (!loaded) {
+        return;
+    }
+
+    game = {
+        questions: loaded.questions,
+        friends: loaded.friends,
+        level: 0,
+        fifty: true,
+        audience: true,
+        phone: true,
+        removed: [],
+        selected: null,
+        locked: false
+    };
+
+    show("screenGame");
+    renderGame();
+}
+
+function renderGame() {
+
+    const q = game.questions[game.level];
+
+    game.removed = [];
+    game.selected = null;
+    game.locked = false;
+
+    $("qnum").textContent = `Question ${game.level + 1} of 15 • ${money(PRIZES[game.level])}`;
+    $("qtext").textContent = q.q;
+    $("noteBox").textContent = "";
+    $("panel").innerHTML = "";
+
+    const box = $("answers");
+
+    box.innerHTML = "";
+
+    q.options.forEach((text, i) => {
+
+        const button = document.createElement("button");
+        const letter = document.createElement("span");
+        const label = document.createElement("span");
+
+        button.className = "ans";
+        button.id = "ans" + i;
+
+        letter.className = "letter";
+        letter.textContent = LETTERS[i] + ":";
+
+        label.textContent = text;
+
+        button.appendChild(letter);
+        button.appendChild(label);
+        button.onclick = () => pick(i);
+
+        box.appendChild(button);
+    });
+
+    setActions("play");
+    updateLifelines();
+    renderLadder();
+}
+
+function setActions(mode) {
+
+    $("finalBtn").style.display = mode === "play" ? "inline-block" : "none";
+    $("walkBtn").style.display = mode === "play" ? "inline-block" : "none";
+    $("nextBtn").style.display = mode === "next" ? "inline-block" : "none";
+    $("resultBtn").style.display = mode === "result" ? "inline-block" : "none";
+
+    $("finalBtn").disabled = game.selected === null;
+}
+
+function updateLifelines() {
+
+    $("lifeFifty").classList.toggle("used", !game.fifty);
+    $("lifeAudience").classList.toggle("used", !game.audience);
+    $("lifePhone").classList.toggle("used", !game.phone);
+
+    ["lifeFifty", "lifeAudience", "lifePhone"].forEach(id => {
+        $(id).disabled = game.locked;
+    });
+}
+
+function renderLadder() {
+
+    const ladder = $("ladder");
+
+    ladder.innerHTML = "";
+
+    for (let i = PRIZES.length - 1; i >= 0; i--) {
+
+        const row = document.createElement("div");
+        const number = document.createElement("span");
+        const prize = document.createElement("span");
+
+        row.className = "rung"
+            + (SAFE_AT.includes(i) ? " safe" : "")
+            + (i === game.level ? " current" : "")
+            + (i < game.level ? " done" : "");
+
+        number.textContent = String(i + 1);
+        prize.textContent = money(PRIZES[i]);
+
+        row.appendChild(number);
+        row.appendChild(prize);
+        ladder.appendChild(row);
+    }
+}
+
+function refreshAnswerStates() {
+
+    for (let i = 0; i < 4; i++) {
+
+        const button = $("ans" + i);
+
+        button.classList.toggle("removed", game.removed.includes(i));
+        button.classList.toggle("selected", game.selected === i);
+    }
+
+    $("finalBtn").disabled = game.selected === null || game.locked;
+}
+
+function pick(i) {
+
+    if (game.locked || game.removed.includes(i)) {
+        return;
+    }
+
+    game.selected = i;
+
+    playClick();
+    refreshAnswerStates();
+}
+
+function finalAnswer() {
+
+    if (game.selected === null || game.locked) {
+        return;
+    }
+
+    game.locked = true;
+
+    $("ans" + game.selected).classList.add("locked");
+    $("finalBtn").disabled = true;
+    $("walkBtn").disabled = true;
+
+    updateLifelines();
+    playClick();
+
+    $("noteBox").textContent = "Is that your final answer?...";
+
+    setTimeout(reveal, 1900);
+}
+
+function reveal() {
+
+    const q = game.questions[game.level];
+    const chosen = game.selected;
+
+    $("ans" + chosen).classList.remove("locked");
+
+    $("ans" + q.correct).classList.add("correct");
+
+    $("walkBtn").disabled = false;
+
+    if (chosen === q.correct) {
+
+        $("noteBox").textContent = q.note;
+
+        if (game.level === PRIZES.length - 1) {
+
+            playWin();
+
+            setTimeout(() => endGame("win", PRIZES[PRIZES.length - 1]), 2200);
+
+            return;
+        }
+
+        playCorrect();
+
+        $("noteBox").textContent =
+            `Correct! You've won ${money(PRIZES[game.level])}. ` + q.note;
+
+        setActions("next");
+
+    } else {
+
+        $("ans" + chosen).classList.add("wrong");
+
+        playWrong();
+
+        $("noteBox").textContent = "Oh no, that's wrong! " + q.note;
+
+        setActions("result");
+    }
+}
+
+function nextQuestion() {
+
+    game.level += 1;
+
+    renderGame();
+}
+
+function safeAmount() {
+
+    if (game.level > SAFE_AT[1]) {
+        return PRIZES[SAFE_AT[1]];
+    }
+
+    if (game.level > SAFE_AT[0]) {
+        return PRIZES[SAFE_AT[0]];
+    }
+
+    return 0;
+}
+
+function finishLoss() {
+
+    endGame("lose", safeAmount());
+}
+
+function walkAway() {
+
+    if (game.locked) {
+        return;
+    }
+
+    const amount = game.level === 0 ? 0 : PRIZES[game.level - 1];
+
+    if (confirm(`Walk away with ${money(amount)}?`)) {
+        endGame("walk", amount);
+    }
+}
+
+function endGame(kind, amount) {
+
+    show("screenEnd");
+
+    $("endAmount").textContent = money(amount);
+
+    if (kind === "win") {
+        $("endTitle").textContent = "🎉 YOU'RE A MILLIONAIRE! 🎉";
+        $("endText").textContent = "Fifteen out of fifteen. You really do know this league.";
+    } else if (kind === "walk") {
+        $("endTitle").textContent = "🚶 You walked away";
+        $("endText").textContent =
+            `You answered ${game.level} question${game.level === 1 ? "" : "s"} correctly and took the money.`;
+    } else {
+        $("endTitle").textContent = "❌ Wrong answer";
+        $("endText").textContent = amount > 0
+            ? "You fall back to your safe haven."
+            : "No safe haven reached, so you leave with nothing.";
+    }
+}
+
+function playAgain() {
+
+    show("screenStart");
+
+    loadQuestions();
+}
+
+
+/* ---------- lifelines ---------- */
+
+function useFifty() {
+
+    if (!game.fifty || game.locked) {
+        return;
+    }
+
+    game.fifty = false;
+
+    const q = game.questions[game.level];
+
+    const wrong = shuffled(
+        [0, 1, 2, 3].filter(i => i !== q.correct && !game.removed.includes(i))
+    );
+
+    game.removed.push(wrong[0], wrong[1]);
+
+    if (game.removed.includes(game.selected)) {
+        game.selected = null;
+    }
+
+    playLifeline();
+    updateLifelines();
+    refreshAnswerStates();
+}
+
+function useAudience() {
+
+    if (!game.audience || game.locked) {
+        return;
+    }
+
+    game.audience = false;
+
+    const q = game.questions[game.level];
+    const alive = aliveOptions();
+    const votes = audienceVotes(game.level, q.correct, alive);
+
+    playLifeline();
+    updateLifelines();
+
+    const box = document.createElement("div");
+    const title = document.createElement("h3");
+    const chart = document.createElement("div");
+
+    box.className = "box";
+    title.textContent = "👥 The audience has voted";
+    chart.className = "aud";
+
+    const bars = [];
+
+    for (let i = 0; i < 4; i++) {
+
+        const col = document.createElement("div");
+        const pct = document.createElement("div");
+        const bar = document.createElement("div");
+        const letter = document.createElement("div");
+
+        col.className = "bar-col";
+        pct.className = "pct";
+        bar.className = "bar";
+        letter.className = "bar-letter";
+
+        pct.textContent = alive.includes(i) ? votes[i] + "%" : "";
+        letter.textContent = LETTERS[i];
+
+        col.appendChild(pct);
+        col.appendChild(bar);
+        col.appendChild(letter);
+        chart.appendChild(col);
+
+        bars.push(bar);
+    }
+
+    box.appendChild(title);
+    box.appendChild(chart);
+    $("panel").appendChild(box);
+
+    setTimeout(() => {
+        bars.forEach((bar, i) => {
+            bar.style.height = Math.round(votes[i] * 1.25) + "px";
+        });
+    }, 60);
+}
+
+function confidenceWords(confidence) {
+
+    if (confidence >= 85) {
+        return pickOne(["I'm absolutely certain", "No doubt about it", "I'd put my house on it"]);
+    }
+
+    if (confidence >= 65) {
+        return pickOne(["I'm pretty sure", "I'm fairly confident", "I reckon"]);
+    }
+
+    if (confidence >= 45) {
+        return pickOne(["I think", "I'm leaning towards", "Don't quote me, but I think"]);
+    }
+
+    return pickOne(["Honestly, I'm guessing, but maybe", "I really don't know, but if I had to say", "Erm... no idea mate, possibly"]);
+}
+
+function usePhone() {
+
+    if (!game.phone || game.locked) {
+        return;
+    }
+
+    game.phone = false;
+
+    const q = game.questions[game.level];
+    const alive = aliveOptions();
+    const friend = pickOne(game.friends);
+    const advice = phoneAdvice(game.level, q.correct, alive);
+
+    playLifeline();
+    updateLifelines();
+
+    const box = document.createElement("div");
+    const title = document.createElement("h3");
+    const talk = document.createElement("div");
+
+    box.className = "box";
+    title.textContent = "📞 Phone a Friend";
+    talk.className = "phone";
+
+    box.appendChild(title);
+    box.appendChild(talk);
+    $("panel").appendChild(box);
+
+    const intro = `Ringing ${friend.name}` + (friend.team ? ` (${friend.team})` : "") + "...";
+
+    talk.textContent = intro;
+
+    const line =
+        `"Hello, it's ${friend.name}! Right, let me have a look... `
+        + `${confidenceWords(advice.confidence)} it's ${LETTERS[advice.pick]}: `
+        + `${q.options[advice.pick]}."`;
+
+    if (typer) {
+        clearInterval(typer);
+    }
+
+    setTimeout(() => {
+
+        let shown = 0;
+
+        talk.textContent = "";
+
+        typer = setInterval(() => {
+
+            shown += 1;
+
+            talk.textContent = line.slice(0, shown);
+
+            if (shown >= line.length) {
+                clearInterval(typer);
+            }
+
+        }, 28);
+
+    }, 1300);
+}
+
+
+/* ---------- keyboard ---------- */
+
+document.addEventListener("keydown", event => {
+
+    if (!game || $("screenGame").style.display === "none") {
+        return;
+    }
+
+    const index = ["a", "b", "c", "d"].indexOf(event.key.toLowerCase());
+
+    if (index >= 0) {
+        pick(index);
+    } else if (event.key === "Enter") {
+        if ($("finalBtn").style.display !== "none") {
+            finalAnswer();
+        } else if ($("nextBtn").style.display !== "none") {
+            nextQuestion();
+        }
+    }
+});
+
+loadQuestions();
+
+</script>
+
+</body>
+
+</html>
+"""
+
+
+# ============================================================
+# WHO WANTS TO BE A MILLIONAIRE (questions built from the league data)
+# ============================================================
+
+_MILL_CACHE = {"t": 0.0, "facts": None}
+_MILL_LOCK = threading.Lock()
+
+
+def build_millionaire_facts():
+    """Everything the quiz needs from the league, taken from the same data
+    the dashboard already uses (finished gameweeks only)."""
+
+    league_name, standings = get_league()
+
+    finished_gw = get_current_gameweek()
+
+    rows, state = get_league_rows(standings, finished_gw)
+
+    curries = {}
+
+    for swap in state.get("swaps", []):
+        for entry in swap.get("winners", []):
+            curries[entry] = curries.get(entry, 0) + 1
+
+    chip_names = {key: name for key, short, name in CHIP_LIST}
+
+    managers = []
+
+    for row in rows:
+
+        history = row["history"]
+        current = history.get("current", [])
+
+        if not current:
+            continue
+
+        last = current[-1]
+
+        gw = {
+            g["event"]: g.get("points", 0) - g.get("event_transfers_cost", 0)
+            for g in current
+            if g.get("event") and g["event"] <= finished_gw
+        }
+
+        managers.append({
+            "entry": row["entry"],
+            "name": row.get("player_name", "Unknown Manager"),
+            "team": row.get("entry_name", "Unknown Team"),
+            "league": row["league"],
+            "rank": row["league_rank"],
+            "total": last.get("total_points", sum(gw.values())),
+            "gw": gw,
+            "hits": sum(g.get("event_transfers_cost", 0) for g in current),
+            "transfers": sum(g.get("event_transfers", 0) for g in current),
+            "bench": sum(g.get("points_on_bench") or 0 for g in current),
+            "value": (last.get("value") or 0) / 10,
+            "overall_rank": last.get("overall_rank"),
+            "chips": [
+                {"name": c.get("name"), "event": c.get("event")}
+                for c in history.get("chips", [])
+                if c.get("name") in chip_names
+                and c.get("event", 0) <= finished_gw
+            ],
+            "curries": curries.get(row["entry"], 0)
+        })
+
+    return {
+        "league_name": league_name,
+        "finished_gw": finished_gw,
+        "chip_names": chip_names,
+        "managers": managers
+    }
+
+
+def get_millionaire_facts():
+    """The league facts, reused for ten minutes so a new game starts fast."""
+
+    with _MILL_LOCK:
+
+        if (
+            _MILL_CACHE["facts"] is not None
+            and time.time() - _MILL_CACHE["t"] < 600
+        ):
+            return _MILL_CACHE["facts"]
+
+        facts = build_millionaire_facts()
+
+        _MILL_CACHE["facts"] = facts
+        _MILL_CACHE["t"] = time.time()
+
+        return facts
+
+
+def build_millionaire_questions(facts):
+    """15 multiple-choice questions, easy to hard, all from the league data."""
+
+    M = facts["managers"]
+    last_gw = facts["finished_gw"]
+    chip_names = facts["chip_names"]
+
+    if len(M) < 4 or last_gw < 1:
+        raise ValueError("Not enough league data yet to make questions")
+
+    # ---------- helpers ----------
+
+    def mk(prompt, correct, wrong, note):
+        options = [correct] + list(wrong)
+
+        if len(options) != 4 or len(set(options)) != 4:
+            return None
+
+        random.shuffle(options)
+
+        return {
+            "q": prompt,
+            "options": options,
+            "correct": options.index(correct),
+            "note": note
+        }
+
+    def others(m, key, exclude=()):
+        pool = [
+            x for x in M
+            if x["entry"] != m["entry"] and x["entry"] not in exclude
+        ]
+
+        if len(pool) < 3:
+            return None
+
+        return [x[key] for x in random.sample(pool, 3)]
+
+    def number_options(answer, spread, minimum=0, step=1, decimals=0):
+        values = set()
+        tries = 0
+
+        while len(values) < 3 and tries < 300:
+            tries += 1
+
+            value = answer + (
+                random.randint(1, spread) * random.choice([-1, 1]) * step
+            )
+
+            if decimals:
+                value = round(value, decimals)
+
+            if value < minimum or value == answer:
+                continue
+
+            values.add(value)
+
+        return list(values) if len(values) == 3 else None
+
+    def mk_num(prompt, answer, spread, note, fmt=str,
+               minimum=0, step=1, decimals=0):
+        wrong = number_options(answer, spread, minimum, step, decimals)
+
+        if wrong is None:
+            return None
+
+        return mk(prompt, fmt(answer), [fmt(w) for w in wrong], note)
+
+    def extreme(key, highest=True):
+        ranked = sorted(M, key=lambda x: x[key], reverse=highest)
+
+        if ranked[0][key] == ranked[1][key]:
+            return None
+
+        return ranked[0]
+
+    def gw_list():
+        return [
+            g for g in range(1, last_gw + 1)
+            if sum(1 for m in M if g in m["gw"]) >= 4
+        ]
+
+    def gw_scores(gw):
+        return sorted(
+            ((m["gw"][gw], m) for m in M if gw in m["gw"]),
+            key=lambda x: -x[0]
+        )
+
+    # ---------- easy ----------
+
+    def g_team_of():
+        m = random.choice(M)
+        wrong = others(m, "team")
+
+        return wrong and mk(
+            f"Which team name belongs to {m['name']}?",
+            m["team"], wrong, f"{m['name']} manages {m['team']}."
+        )
+
+    def g_manager_of():
+        m = random.choice(M)
+        wrong = others(m, "name")
+        team = m["team"]
+
+        return wrong and mk(
+            f'Who manages the team called "{team}"?',
+            m["name"], wrong, f"{m['name']} manages {team}."
+        )
+
+    def g_top_total():
+        top = extreme("total", True)
+        wrong = top and others(top, "name")
+
+        return wrong and mk(
+            "Who has the most points in the league right now?",
+            top["name"], wrong,
+            f"{top['name']} leads with {top['total']} points."
+        )
+
+    def g_bottom_total():
+        bottom = extreme("total", False)
+        wrong = bottom and others(bottom, "name")
+
+        return wrong and mk(
+            "Who has the fewest points in the league right now?",
+            bottom["name"], wrong,
+            f"{bottom['name']} is bottom with {bottom['total']} points."
+        )
+
+    def g_top_league():
+        league = random.choice(["championship", "challenger"])
+        label = "Championship" if league == "championship" else "Challenger"
+
+        firsts = [
+            m for m in M if m["league"] == league and m["rank"] == 1
+        ]
+
+        if len(firsts) != 1:
+            return None
+
+        top = firsts[0]
+        wrong = others(top, "name")
+
+        return wrong and mk(
+            f"Who is currently top of the {label} league?",
+            top["name"], wrong, f"{top['name']} leads the {label} league."
+        )
+
+    def gw_top_question(gw, label):
+        scores = gw_scores(gw)
+
+        if len(scores) < 4 or scores[0][0] == scores[1][0]:
+            return None
+
+        best = scores[0][1]
+        wrong = others(best, "name")
+
+        return wrong and mk(
+            f"Who scored the most points in {label}?",
+            best["name"], wrong,
+            f"{best['name']} scored {scores[0][0]} points in GW{gw}."
+        )
+
+    def g_last_gw_top():
+        return gw_top_question(
+            last_gw, f"the latest gameweek (Gameweek {last_gw})"
+        )
+
+    def g_gw_top():
+        gws = gw_list()
+
+        if not gws:
+            return None
+
+        gw = random.choice(gws)
+
+        return gw_top_question(gw, f"Gameweek {gw}")
+
+    # ---------- medium ----------
+
+    def g_gw_score():
+        gws = gw_list()
+
+        if not gws:
+            return None
+
+        gw = random.choice(gws)
+        m = random.choice([x for x in M if gw in x["gw"]])
+        points = m["gw"][gw]
+
+        if points < 0:
+            return None
+
+        return mk_num(
+            f"How many points did {m['name']} score in Gameweek {gw} "
+            f"(after any transfer hit)?",
+            points, 18, f"{m['name']} scored {points} points in GW{gw}."
+        )
+
+    def g_gw_bottom():
+        gws = gw_list()
+
+        if not gws:
+            return None
+
+        gw = random.choice(gws)
+        scores = gw_scores(gw)
+
+        if len(scores) < 4 or scores[-1][0] == scores[-2][0]:
+            return None
+
+        worst = scores[-1][1]
+        wrong = others(worst, "name")
+
+        return wrong and mk(
+            f"Who scored the fewest points in Gameweek {gw}?",
+            worst["name"], wrong,
+            f"{worst['name']} scored just {scores[-1][0]} points in GW{gw}."
+        )
+
+    def g_most_hits():
+        top = extreme("hits", True)
+
+        if not top or top["hits"] <= 0:
+            return None
+
+        wrong = others(top, "name")
+
+        return wrong and mk(
+            "Who has lost the most points to transfer hits this season?",
+            top["name"], wrong,
+            f"{top['name']} has lost {top['hits']} points to hits."
+        )
+
+    def g_most_bench():
+        top = extreme("bench", True)
+
+        if not top or top["bench"] <= 0:
+            return None
+
+        wrong = others(top, "name")
+
+        return wrong and mk(
+            "Who has left the most points on the bench this season?",
+            top["name"], wrong,
+            f"{top['name']} has left {top['bench']} points on the bench."
+        )
+
+    def g_most_transfers():
+        top = extreme("transfers", True)
+
+        if not top or top["transfers"] <= 0:
+            return None
+
+        wrong = others(top, "name")
+
+        return wrong and mk(
+            "Who has made the most transfers this season?",
+            top["name"], wrong,
+            f"{top['name']} has made {top['transfers']} transfers."
+        )
+
+    def g_value_top():
+        top = extreme("value", True)
+
+        if not top or top["value"] <= 0:
+            return None
+
+        wrong = others(top, "name")
+
+        return wrong and mk(
+            "Whose squad is worth the most right now?",
+            top["name"], wrong,
+            f"{top['name']}'s squad is worth £{top['value']:.1f}m."
+        )
+
+    def g_most_curries():
+        top = extreme("curries", True)
+
+        if not top or top["curries"] <= 0:
+            return None
+
+        wrong = others(top, "name")
+
+        return wrong and mk(
+            "Who has won the most curries so far?",
+            top["name"], wrong,
+            f"{top['name']} has won {top['curries']} curr"
+            f"{'y' if top['curries'] == 1 else 'ies'}."
+        )
+
+    def g_chip_who():
+        events = [
+            (c["name"], c["event"]) for m in M for c in m["chips"]
+        ]
+
+        if not events:
+            return None
+
+        key, event = random.choice(events)
+
+        players = [
+            m for m in M
+            if any(c["name"] == key and c["event"] == event
+                   for c in m["chips"])
+        ]
+
+        correct = random.choice(players)
+        wrong = others(
+            correct, "name", exclude={p["entry"] for p in players}
+        )
+
+        chip = chip_names.get(key, key)
+
+        return wrong and mk(
+            f"Who played their {chip} in Gameweek {event}?",
+            correct["name"], wrong,
+            f"{correct['name']} played their {chip} in GW{event}."
+        )
+
+    # ---------- hard ----------
+
+    def g_total_number():
+        m = random.choice(M)
+
+        return mk_num(
+            f"How many points does {m['name']} have in total "
+            f"(after transfer hits)?",
+            m["total"], 14,
+            f"{m['name']} has {m['total']} points."
+        )
+
+    def g_best_gw():
+        pool = [x for x in M if len(x["gw"]) >= 6]
+
+        if not pool:
+            return None
+
+        m = random.choice(pool)
+        best = max(m["gw"].values())
+        gws = [g for g, p in m["gw"].items() if p == best]
+
+        if len(gws) != 1:
+            return None
+
+        wrong = [g for g in m["gw"] if g != gws[0]]
+
+        if len(wrong) < 3:
+            return None
+
+        return mk(
+            f"In which gameweek did {m['name']} score their highest points?",
+            f"GW{gws[0]}", [f"GW{g}" for g in random.sample(wrong, 3)],
+            f"{m['name']} scored {best} points in GW{gws[0]}."
+        )
+
+    def g_chip_when():
+        pool = [(m, c) for m in M for c in m["chips"]]
+
+        if not pool:
+            return None
+
+        m, chip = random.choice(pool)
+
+        if sum(1 for c in m["chips"] if c["name"] == chip["name"]) != 1:
+            return None
+
+        wrong = [g for g in range(1, last_gw + 1) if g != chip["event"]]
+
+        if len(wrong) < 3:
+            return None
+
+        label = chip_names.get(chip["name"], chip["name"])
+
+        return mk(
+            f"In which gameweek did {m['name']} play their {label}?",
+            f"GW{chip['event']}", [f"GW{g}" for g in random.sample(wrong, 3)],
+            f"{m['name']} played their {label} in GW{chip['event']}."
+        )
+
+    def all_scores():
+        return sorted(
+            ((p, m, g) for m in M for g, p in m["gw"].items()),
+            key=lambda x: -x[0]
+        )
+
+    def g_high_score_number():
+        scores = all_scores()
+
+        if len(scores) < 2:
+            return None
+
+        points, m, gw = scores[0]
+
+        return mk_num(
+            "What is the highest single-gameweek score by anyone in the "
+            "league this season (after hits)?",
+            points, 8, f"{m['name']} scored {points} points in GW{gw}.",
+            minimum=1
+        )
+
+    def g_high_score_who():
+        scores = all_scores()
+
+        if len(scores) < 2 or scores[0][0] == scores[1][0]:
+            return None
+
+        points, m, gw = scores[0]
+        wrong = others(m, "name")
+
+        return wrong and mk(
+            "Who has the highest single-gameweek score in the league "
+            "this season (after hits)?",
+            m["name"], wrong,
+            f"{m['name']} scored {points} points in GW{gw}."
+        )
+
+    def g_rank_number():
+        pool = [x for x in M if x.get("overall_rank")]
+
+        if not pool:
+            return None
+
+        m = random.choice(pool)
+        rank = m["overall_rank"]
+
+        values = set()
+        tries = 0
+
+        while len(values) < 3 and tries < 300:
+            tries += 1
+
+            value = int(
+                rank * (1 + random.choice([-1, 1]) * random.uniform(0.04, 0.4))
+            )
+
+            if value > 0 and value != rank:
+                values.add(value)
+
+        if len(values) < 3:
+            return None
+
+        return mk(
+            f"What is {m['name']}'s current overall rank in the world?",
+            f"{rank:,}", [f"{v:,}" for v in values],
+            f"{m['name']}'s overall rank is {rank:,}."
+        )
+
+    def g_hits_number():
+        pool = [x for x in M if x["hits"] > 0]
+
+        if not pool:
+            return None
+
+        m = random.choice(pool)
+
+        return mk_num(
+            f"How many points has {m['name']} lost to transfer hits "
+            f"this season?",
+            m["hits"], 4, f"{m['name']} has lost {m['hits']} points to hits.",
+            step=4
+        )
+
+    def g_bench_number():
+        pool = [x for x in M if x["bench"] > 0]
+
+        if not pool:
+            return None
+
+        m = random.choice(pool)
+
+        return mk_num(
+            f"How many points has {m['name']} left on the bench "
+            f"this season?",
+            m["bench"], 12,
+            f"{m['name']} has left {m['bench']} points on the bench."
+        )
+
+    def g_gap_number():
+        totals = sorted(m["total"] for m in M)
+        gap = totals[-1] - totals[0]
+
+        if gap <= 0:
+            return None
+
+        return mk_num(
+            "How many points separate first and last in the league "
+            "right now?",
+            gap, 10, f"The gap between first and last is {gap} points.",
+            minimum=1
+        )
+
+    def g_value_number():
+        pool = [x for x in M if x["value"] > 0]
+
+        if not pool:
+            return None
+
+        m = random.choice(pool)
+        value = round(m["value"], 1)
+
+        return mk_num(
+            f"How much is {m['name']}'s squad worth right now?",
+            value, 12, f"{m['name']}'s squad is worth £{value:.1f}m.",
+            fmt=lambda v: f"£{v:.1f}m", minimum=50.0, step=0.1, decimals=1
+        )
+
+    easy = [
+        g_team_of, g_manager_of, g_top_total, g_bottom_total,
+        g_top_league, g_last_gw_top, g_gw_top
+    ]
+
+    medium = [
+        g_gw_score, g_gw_bottom, g_most_hits, g_most_bench,
+        g_most_transfers, g_chip_who, g_value_top, g_most_curries
+    ]
+
+    hard = [
+        g_total_number, g_best_gw, g_chip_when, g_high_score_number,
+        g_high_score_who, g_rank_number, g_hits_number, g_bench_number,
+        g_gap_number, g_value_number
+    ]
+
+    everything = easy + medium + hard
+
+    tiers = [easy] * 5 + [medium] * 5 + [hard] * 5
+
+    used_prompts = set()
+    usage = {}
+    questions = []
+
+    for tier in tiers:
+
+        made = None
+
+        # Try this level's own questions first, then anything left
+        for pool in (tier, everything):
+
+            ordered = sorted(
+                pool,
+                key=lambda f: (usage.get(f.__name__, 0), random.random())
+            )
+
+            for gen in ordered:
+                for _ in range(6):
+
+                    try:
+                        question = gen()
+                    except Exception:
+                        question = None
+
+                    if question and question["q"] not in used_prompts:
+                        made = (gen, question)
+                        break
+
+                if made:
+                    break
+
+            if made:
+                break
+
+        if not made:
+            raise ValueError("Couldn't make enough questions from the data")
+
+        gen, question = made
+
+        used_prompts.add(question["q"])
+        usage[gen.__name__] = usage.get(gen.__name__, 0) + 1
+
+        questions.append(question)
+
+    return questions
+
+
+@app.route("/millionaire")
+def millionaire_page():
+    return MILLIONAIRE_HTML
+
+
+@app.route("/api/millionaire")
+def api_millionaire():
+    """A fresh set of 15 questions made from the league data."""
+
+    try:
+        facts = get_millionaire_facts()
+
+        return jsonify({
+            "league_name": facts["league_name"],
+            "finished_gw": facts["finished_gw"],
+            "friends": [
+                {"name": m["name"], "team": m["team"]}
+                for m in facts["managers"]
+            ],
+            "questions": build_millionaire_questions(facts)
+        })
+
+    except Exception as error:
+
+        return jsonify({"error": str(error)}), 500
 
 
 # ============================================================
